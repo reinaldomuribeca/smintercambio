@@ -19,16 +19,16 @@ export default async function FechamentoPage({ params }: { params: Params }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [jornada, emailTemplates] = await Promise.all([
+  const [jornada, emailTemplatesRaw] = await Promise.all([
     getJornadaHub(jornadaId),
-    listEmailTemplates(),
+    listEmailTemplates().catch(() => []),
   ])
   if (!jornada) notFound()
 
   const fechamento = await getOrCreateFechamento(jornadaId)
 
   const emailTemplatesByStep = Object.fromEntries(
-    emailTemplates
+    emailTemplatesRaw
       .filter((t) => t.fechamentoStep !== null)
       .map((t) => [t.fechamentoStep!, t])
   )
