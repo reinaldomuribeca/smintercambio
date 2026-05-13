@@ -2,7 +2,8 @@
 
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, Globe } from 'lucide-react'
+import { AlertTriangle, Globe, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 import type { FunilLead } from '@/lib/actions/funil'
 
 // ─── Status sub-label map ─────────────────────────────────────────────────────
@@ -67,8 +68,19 @@ export function LeadCard({ lead, isDragging, isGhost }: Props) {
           : 'border-cream-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md'
       }`}
     >
-      {/* Nome */}
-      <p className="truncate text-sm font-semibold text-stone-900">{lead.nome}</p>
+      {/* Nome + link ficha */}
+      <div className="flex items-start justify-between gap-2">
+        <p className="truncate text-sm font-semibold text-stone-900">{lead.nome}</p>
+        <Link
+          href={`/leads/${lead.id}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          title="Ver ficha do estudante"
+          className="shrink-0 rounded-md p-0.5 text-stone-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-amber-50 hover:text-amber-600"
+        >
+          <ExternalLink className="size-3.5" />
+        </Link>
+      </div>
 
       {/* Destino */}
       {lead.destinoDesejado && (
