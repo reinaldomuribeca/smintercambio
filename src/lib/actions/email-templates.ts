@@ -13,6 +13,7 @@ export type EmailTemplateItem = {
   nome: string
   assunto: string
   corpo: string
+  fechamentoStep: number | null
 }
 
 export type EmailTemplateState = { error?: string; success?: boolean } | null
@@ -35,7 +36,7 @@ async function getAuth() {
 export async function listEmailTemplates(): Promise<EmailTemplateItem[]> {
   await getAuth()
   return prisma.emailTemplate.findMany({
-    select: { id: true, nome: true, assunto: true, corpo: true },
+    select: { id: true, nome: true, assunto: true, corpo: true, fechamentoStep: true },
     orderBy: { nome: 'asc' },
   })
 }
@@ -49,15 +50,17 @@ export async function createEmailTemplate(
   const { role } = await getAuth()
   if (role !== Role.DIRECAO) return { error: 'Sem permissão.' }
 
-  const nome    = (formData.get('nome')    as string | null)?.trim()
-  const assunto = (formData.get('assunto') as string | null)?.trim()
-  const corpo   = (formData.get('corpo')   as string | null)?.trim()
+  const nome           = (formData.get('nome')    as string | null)?.trim()
+  const assunto        = (formData.get('assunto') as string | null)?.trim()
+  const corpo          = (formData.get('corpo')   as string | null)?.trim()
+  const stepRaw        = (formData.get('fechamentoStep') as string | null)?.trim()
+  const fechamentoStep = stepRaw ? parseInt(stepRaw, 10) : null
 
   if (!nome)    return { error: 'Nome é obrigatório.' }
   if (!assunto) return { error: 'Assunto é obrigatório.' }
   if (!corpo)   return { error: 'Corpo é obrigatório.' }
 
-  await prisma.emailTemplate.create({ data: { nome, assunto, corpo } })
+  await prisma.emailTemplate.create({ data: { nome, assunto, corpo, fechamentoStep } })
   revalidatePath('/configuracoes')
   return { success: true }
 }
@@ -71,14 +74,16 @@ export async function updateEmailTemplate(
   const { role } = await getAuth()
   if (role !== Role.DIRECAO) return { error: 'Sem permissão.' }
 
-  const id      = (formData.get('id')      as string | null)?.trim()
-  const nome    = (formData.get('nome')    as string | null)?.trim()
-  const assunto = (formData.get('assunto') as string | null)?.trim()
-  const corpo   = (formData.get('corpo')   as string | null)?.trim()
+  const id             = (formData.get('id')      as string | null)?.trim()
+  const nome           = (formData.get('nome')    as string | null)?.trim()
+  const assunto        = (formData.get('assunto') as string | null)?.trim()
+  const corpo          = (formData.get('corpo')   as string | null)?.trim()
+  const stepRaw        = (formData.get('fechamentoStep') as string | null)?.trim()
+  const fechamentoStep = stepRaw ? parseInt(stepRaw, 10) : null
 
   if (!id || !nome || !assunto || !corpo) return { error: 'Todos os campos são obrigatórios.' }
 
-  await prisma.emailTemplate.update({ where: { id }, data: { nome, assunto, corpo } })
+  await prisma.emailTemplate.update({ where: { id }, data: { nome, assunto, corpo, fechamentoStep } })
   revalidatePath('/configuracoes')
   return { success: true }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useActionState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
-import { Plus, Pencil, Trash2, X, Mail, Info } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Mail, Info, Link2 } from 'lucide-react'
 import {
   createEmailTemplate,
   updateEmailTemplate,
@@ -84,6 +84,21 @@ function TemplateForm({
         <div className="sm:col-span-2">
           <label className={LABEL}>Assunto do e-mail *</label>
           <input name="assunto" className={INPUT} defaultValue={defaultValues?.assunto} placeholder="Ex: Contrato e documentação — {{nome_aluno}}" required />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={LABEL}>Vincular ao step de Fechamento e Matrícula</label>
+          <select
+            name="fechamentoStep"
+            className={INPUT}
+            defaultValue={defaultValues?.fechamentoStep?.toString() ?? ''}
+          >
+            <option value="">Nenhum (template genérico)</option>
+            <option value="1">Step 1 — Envio do Contrato e Documentos</option>
+            <option value="4">Step 4 — Envio de Documentação à Escola</option>
+          </select>
+          <p className="mt-1 text-xs text-stone-400">
+            Quando vinculado, o template será sugerido automaticamente no step correspondente do Fechamento.
+          </p>
         </div>
       </div>
 
@@ -186,7 +201,16 @@ export function TabEmailTemplates({ templates }: { templates: EmailTemplateItem[
             <tbody className="divide-y divide-cream-100">
               {templates.map((t) => (
                 <tr key={t.id} className="hover:bg-cream-50">
-                  <td className="px-4 py-3.5 font-medium text-stone-800">{t.nome}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-stone-800">{t.nome}</span>
+                      {t.fechamentoStep && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                          <Link2 className="size-3" /> Step {t.fechamentoStep}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="hidden px-4 py-3.5 text-stone-500 sm:table-cell truncate max-w-xs">{t.assunto}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-1">

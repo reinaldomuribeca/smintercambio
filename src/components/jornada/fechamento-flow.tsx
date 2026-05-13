@@ -202,11 +202,11 @@ function SendEmailBtn() {
   )
 }
 
-function EmailComposePanel({ templates, ctx }: { templates: EmailTemplateItem[]; ctx: EmailContext }) {
-  const [selectedId, setSelectedId] = useState('')
+function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTemplateItem | null; ctx: EmailContext; stepNumero: number }) {
   const [destinatario, setDestinatario] = useState(ctx.leadEmail)
   const [assunto, setAssunto] = useState('')
   const [corpo, setCorpo] = useState('')
+  const [generated, setGenerated] = useState(false)
   const [sendState, sendAction] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, fd: FormData) => {
       return sendEmailFechamento(
@@ -221,10 +221,10 @@ function EmailComposePanel({ templates, ctx }: { templates: EmailTemplateItem[];
   const [copied, setCopied] = useState(false)
 
   function handleGenerate() {
-    const tpl = templates.find((t) => t.id === selectedId)
-    if (!tpl) return
-    setAssunto(resolvePlaceholders(tpl.assunto, ctx))
-    setCorpo(resolvePlaceholders(tpl.corpo, ctx))
+    if (!template) return
+    setAssunto(resolvePlaceholders(template.assunto, ctx))
+    setCorpo(resolvePlaceholders(template.corpo, ctx))
+    setGenerated(true)
   }
 
   function handleCopy() {
@@ -234,94 +234,102 @@ function EmailComposePanel({ templates, ctx }: { templates: EmailTemplateItem[];
     })
   }
 
-  if (templates.length === 0) return null
-
   return (
     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-        <Mail className="size-4" /> Enviar e-mail para o aluno
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+          <Mail className="size-4" /> Enviar e-mail para o aluno
+        </div>
+        {!template && (
+          <span className="text-xs text-stone-400">Nenhum template vinculado a este step</span>
+        )}
       </div>
 
-      {/* Template selector */}
-      <div className="flex items-end gap-2">
-        <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-stone-600">Template</label>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-          >
-            <option value="">Selecione um template…</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>{t.nome}</option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={!selectedId}
-          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-40"
-        >
-          Gerar corpo
-        </button>
-      </div>
-
-      {/* Compose fields */}
-      <form action={sendAction} className="space-y-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-stone-600">Destinatário</label>
-          <input
-            name="destinatario"
-            type="email"
-            value={destinatario}
-            onChange={(e) => setDestinatario(e.target.value)}
-            placeholder="email@exemplo.com"
-            className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-stone-600">Assunto</label>
-          <input
-            name="assunto"
-            value={assunto}
-            onChange={(e) => setAssunto(e.target.value)}
-            placeholder="Assunto do e-mail"
-            className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-stone-600">Corpo</label>
-          <textarea
-            name="corpo"
-            value={corpo}
-            onChange={(e) => setCorpo(e.target.value)}
-            rows={6}
-            placeholder="Selecione um template e clique em 'Gerar corpo'"
-            className="w-full resize-y rounded-lg border border-cream-200 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-          />
-        </div>
-
-        {sendState?.error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{sendState.error}</p>
-        )}
-        {sendState?.success && (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">E-mail enviado com sucesso!</p>
-        )}
-
-        <div className="flex items-center gap-2 pt-1">
-          <SendEmailBtn />
+      {template && !generated && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-stone-400">Template vinculado</p>
+            <p className="text-sm font-medium text-stone-800 truncate">{template.nome}</p>
+          </div>
           <button
             type="button"
-            onClick={handleCopy}
-            disabled={!corpo}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm text-stone-600 hover:bg-cream-50 disabled:opacity-40"
+            onClick={handleGenerate}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
           >
-            {copied ? <CheckCheck className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-            {copied ? 'Copiado!' : 'Copiar corpo'}
+            <Mail className="size-3.5" /> Gerar e-mail
           </button>
         </div>
-      </form>
+      )}
+
+      {!template && (
+        <p className="rounded-lg border border-dashed border-amber-200 px-3 py-3 text-center text-xs text-stone-400">
+          Configure um template vinculado ao Step {stepNumero} em{' '}
+          <span className="font-medium text-amber-700">Configurações → Templates de e-mail</span>.
+        </p>
+      )}
+
+      {generated && (
+        <form action={sendAction} className="space-y-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-600">Destinatário</label>
+            <input
+              name="destinatario"
+              type="email"
+              value={destinatario}
+              onChange={(e) => setDestinatario(e.target.value)}
+              placeholder="email@exemplo.com"
+              className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-600">Assunto</label>
+            <input
+              name="assunto"
+              value={assunto}
+              onChange={(e) => setAssunto(e.target.value)}
+              placeholder="Assunto do e-mail"
+              className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-600">Corpo</label>
+            <textarea
+              name="corpo"
+              value={corpo}
+              onChange={(e) => setCorpo(e.target.value)}
+              rows={8}
+              className="w-full resize-y rounded-lg border border-cream-200 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            />
+          </div>
+
+          {sendState?.error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{sendState.error}</p>
+          )}
+          {sendState?.success && (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">E-mail enviado com sucesso!</p>
+          )}
+
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
+            <SendEmailBtn />
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!corpo}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm text-stone-600 hover:bg-cream-50 disabled:opacity-40"
+            >
+              {copied ? <CheckCheck className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+              {copied ? 'Copiado!' : 'Copiar corpo'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setGenerated(false); setAssunto(''); setCorpo('') }}
+              className="text-xs text-stone-400 hover:text-stone-600 ml-auto"
+            >
+              Refazer
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }
@@ -335,11 +343,11 @@ type EtapaCardProps = {
   dadosSalvos: Record<string, string>
   concluidaEm: string | null
   total: number
-  emailTemplates: EmailTemplateItem[]
+  emailTemplate: EmailTemplateItem | null
   emailCtx: EmailContext
 }
 
-function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, total, emailTemplates, emailCtx }: EtapaCardProps) {
+function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, total, emailTemplate, emailCtx }: EtapaCardProps) {
   const isCurrent = def.numero === etapaAtual
   const isConcluida = def.numero < etapaAtual || (def.numero === etapaAtual && concluidaEm !== null)
   const isLocked = def.numero > etapaAtual
@@ -480,7 +488,7 @@ function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, to
               )}
 
               {EMAIL_STEPS.includes(def.numero) && (
-                <EmailComposePanel templates={emailTemplates} ctx={emailCtx} />
+                <EmailComposePanel template={emailTemplate} ctx={emailCtx} stepNumero={def.numero} />
               )}
             </>
           )}
@@ -494,11 +502,11 @@ function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, to
 
 type Props = {
   fechamento: FechamentoData
-  emailTemplates: EmailTemplateItem[]
+  emailTemplatesByStep: Record<number, EmailTemplateItem>
   emailCtx: EmailContext
 }
 
-export function FechamentoFlow({ fechamento, emailTemplates, emailCtx }: Props) {
+export function FechamentoFlow({ fechamento, emailTemplatesByStep, emailCtx }: Props) {
   const etapaMap = new Map(fechamento.etapas.map((e) => [e.numero, e]))
 
   if (fechamento.concluido) {
@@ -528,7 +536,7 @@ export function FechamentoFlow({ fechamento, emailTemplates, emailCtx }: Props) 
                 dadosSalvos={etapa?.dados ?? {}}
                 concluidaEm={etapa?.concluidaEm ?? null}
                 total={ETAPAS_DEF.length}
-                emailTemplates={emailTemplates}
+                emailTemplate={emailTemplatesByStep[def.numero] ?? null}
                 emailCtx={emailCtx}
               />
             )
@@ -565,7 +573,7 @@ export function FechamentoFlow({ fechamento, emailTemplates, emailCtx }: Props) 
             dadosSalvos={etapa?.dados ?? {}}
             concluidaEm={etapa?.concluidaEm ?? null}
             total={ETAPAS_DEF.length}
-            emailTemplates={emailTemplates}
+            emailTemplate={emailTemplatesByStep[def.numero] ?? null}
             emailCtx={emailCtx}
           />
         )

@@ -27,6 +27,12 @@ export default async function FechamentoPage({ params }: { params: Params }) {
 
   const fechamento = await getOrCreateFechamento(jornadaId)
 
+  const emailTemplatesByStep = Object.fromEntries(
+    emailTemplates
+      .filter((t) => t.fechamentoStep !== null)
+      .map((t) => [t.fechamentoStep!, t])
+  )
+
   const emailCtx: EmailContext = {
     leadNome:     jornada.leadNome,
     leadEmail:    jornada.leadEmail ?? '',
@@ -56,7 +62,7 @@ export default async function FechamentoPage({ params }: { params: Params }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-6 sm:px-8">
-          <FechamentoFlow fechamento={fechamento} emailTemplates={emailTemplates} emailCtx={emailCtx} />
+          <FechamentoFlow fechamento={fechamento} emailTemplatesByStep={emailTemplatesByStep} emailCtx={emailCtx} />
         </div>
       </div>
     </div>

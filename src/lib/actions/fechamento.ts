@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
-import { FechamentoEtapaStatus, TarefaTipo, TarefaStatus, Role } from '@prisma/client'
+import { FechamentoEtapaStatus, TarefaTipo, TarefaStatus, Role, JornadaStatus } from '@prisma/client'
 import { ETAPAS_DEF } from '@/lib/fechamento-config'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -135,6 +135,12 @@ export async function concluirEtapa(
           concluido: isFinal,
         },
       }),
+      ...(isFinal ? [
+        prisma.estudanteJornada.update({
+          where: { id: fechamento.jornadaId },
+          data: { status: JornadaStatus.PREPARACAO_VIAGEM },
+        }),
+      ] : []),
     ])
 
     const jornadaInfo = await getJornadaInfo(fechamento.jornadaId)
@@ -175,6 +181,7 @@ export async function concluirEtapa(
     }
 
     revalidatePath(`/jornada/${fechamento.jornadaId}/fechamento`)
+    revalidatePath(`/jornada/${fechamento.jornadaId}`)
     revalidatePath('/tarefas')
     return { success: true }
   } catch (err) {

@@ -40,6 +40,7 @@ export type JornadaHubData = {
   status: JornadaStatus
   fechamentoConcluido: boolean
   preparacaoConcluida: boolean
+  experienciaConcluida: boolean
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -68,25 +69,33 @@ export async function getJornadasOverview(): Promise<JornadaOverviewItem[]> {
       escola: { select: { nome: true, cidade: { select: { estado: { select: { pais: { select: { nome: true, bandeira: true } } } } } } } },
       etapas: { select: { status: true } },
       preEmbarque: { select: { status: true } },
+      fechamentoMatricula: { select: { concluido: true } },
     },
     orderBy: { embarqueEm: 'asc' },
   })
 
-  return jornadas.map((j) => ({
-    id: j.id,
-    leadId: j.leadId,
-    leadNome: j.lead.nome,
-    escolaNome: j.escola.nome,
-    paisNome: j.escola.cidade.estado.pais.nome,
-    paisBandeira: j.escola.cidade.estado.pais.bandeira,
-    embarqueEm: j.embarqueEm?.toISOString() ?? null,
-    retornoEm: j.retornoEm?.toISOString() ?? null,
-    status: j.status,
-    totalEtapas: j.etapas.length,
-    etapasConcluidas: j.etapas.filter((e) => e.status === JornadaEtapaStatus.CONCLUIDO).length,
-    consultorNome: j.lead.consultor.nome,
-    preEmbarqueStatus: j.preEmbarque?.status ?? null,
-  }))
+  return jornadas.map((j) => {
+    let status = j.status
+    if (status === JornadaStatus.FECHAMENTO_MATRICULA && j.fechamentoMatricula?.concluido) {
+      status = JornadaStatus.PREPARACAO_VIAGEM
+    }
+
+    return {
+      id: j.id,
+      leadId: j.leadId,
+      leadNome: j.lead.nome,
+      escolaNome: j.escola.nome,
+      paisNome: j.escola.cidade.estado.pais.nome,
+      paisBandeira: j.escola.cidade.estado.pais.bandeira,
+      embarqueEm: j.embarqueEm?.toISOString() ?? null,
+      retornoEm: j.retornoEm?.toISOString() ?? null,
+      status,
+      totalEtapas: j.etapas.length,
+      etapasConcluidas: j.etapas.filter((e) => e.status === JornadaEtapaStatus.CONCLUIDO).length,
+      consultorNome: j.lead.consultor.nome,
+      preEmbarqueStatus: j.preEmbarque?.status ?? null,
+    }
+  })
 }
 
 export async function getJornadaHub(jornadaId: string): Promise<JornadaHubData | null> {
@@ -119,6 +128,7 @@ export async function getJornadaHub(jornadaId: string): Promise<JornadaHubData |
     status: jornada.status,
     fechamentoConcluido: jornada.fechamentoMatricula?.concluido ?? false,
     preparacaoConcluida: jornada.preEmbarque?.status === PreEmbarqueStatus.REALIZADO,
+    experienciaConcluida: jornada.status === JornadaStatus.RETORNOU,
   }
 }
 

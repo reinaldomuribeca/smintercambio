@@ -605,10 +605,11 @@ model ChecklistTemplate {
 // ─── Email Templates ──────────────────────────────────────────────────────────
 
 model EmailTemplate {
-  id      String @id @default(cuid())
-  nome    String
-  assunto String
-  corpo   String @db.Text
+  id             String @id @default(cuid())
+  nome           String
+  assunto        String
+  corpo          String @db.Text
+  fechamentoStep Int?   @map("fechamento_step")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
