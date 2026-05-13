@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getJornadaHub } from '@/lib/actions/jornada'
 import { getOrCreateFechamento } from '@/lib/actions/fechamento'
 import { listEmailTemplates } from '@/lib/actions/email-templates'
+import { listEmailPlaceholders } from '@/lib/actions/email-placeholders'
+import { prisma } from '@/lib/prisma'
 import { ArrowLeft, FileCheck2 } from 'lucide-react'
 import { FechamentoFlow } from '@/components/jornada/fechamento-flow'
 import type { EmailContext } from '@/components/jornada/fechamento-flow'
@@ -19,9 +21,10 @@ export default async function FechamentoPage({ params }: { params: Params }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [jornada, emailTemplatesRaw] = await Promise.all([
+  const [jornada, emailTemplatesRaw, emailPlaceholders] = await Promise.all([
     getJornadaHub(jornadaId),
     listEmailTemplates().catch(() => []),
+    listEmailPlaceholders().catch(() => []),
   ])
   if (!jornada) notFound()
 
@@ -33,14 +36,47 @@ export default async function FechamentoPage({ params }: { params: Params }) {
       .map((t) => [t.fechamentoStep!, t])
   )
 
+  // Enrich email context with lead + diagnostico data
+  const leadExtra = await prisma.lead.findUnique({
+    where: { id: jornada.leadId },
+    select: {
+      telefone:        true,
+      cidade:          true,
+      estado:          true,
+      nomeResponsaveis: true,
+      diagnostico: {
+        select: {
+          nomePai:             true,
+          nomeMae:             true,
+          emailResponsavel:    true,
+          telefoneResponsavel: true,
+          objetivoPrograma:    true,
+          duracaoMeses:        true,
+          destinosDesejados:   true,
+        },
+      },
+    },
+  })
+
   const emailCtx: EmailContext = {
-    leadNome:     jornada.leadNome,
-    leadEmail:    jornada.leadEmail ?? '',
-    escolaNome:   jornada.escolaNome,
-    paisNome:     jornada.paisNome,
-    consultorNome: jornada.consultorNome,
-    embarqueEm:   jornada.embarqueEm ?? '',
-    retornoEm:    jornada.retornoEm ?? '',
+    leadNome:            jornada.leadNome,
+    leadEmail:           jornada.leadEmail ?? '',
+    leadTelefone:        leadExtra?.telefone ?? '',
+    leadCidade:          leadExtra?.cidade ?? '',
+    leadEstado:          leadExtra?.estado ?? '',
+    nomeResponsaveis:    leadExtra?.nomeResponsaveis ?? '',
+    nomePai:             leadExtra?.diagnostico?.nomePai ?? '',
+    nomeMae:             leadExtra?.diagnostico?.nomeMae ?? '',
+    emailResponsavel:    leadExtra?.diagnostico?.emailResponsavel ?? '',
+    telefoneResponsavel: leadExtra?.diagnostico?.telefoneResponsavel ?? '',
+    objetivoPrograma:    leadExtra?.diagnostico?.objetivoPrograma ?? '',
+    duracaoMeses:        leadExtra?.diagnostico?.duracaoMeses?.toString() ?? '',
+    destinosDesejados:   (leadExtra?.diagnostico?.destinosDesejados ?? []).join(', '),
+    escolaNome:          jornada.escolaNome,
+    paisNome:            jornada.paisNome,
+    embarqueEm:          jornada.embarqueEm ?? '',
+    retornoEm:           jornada.retornoEm ?? '',
+    consultorNome:       jornada.consultorNome,
   }
 
   return (
@@ -62,7 +98,7 @@ export default async function FechamentoPage({ params }: { params: Params }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-6 sm:px-8">
-          <FechamentoFlow fechamento={fechamento} emailTemplatesByStep={emailTemplatesByStep} emailCtx={emailCtx} />
+          <FechamentoFlow fechamento={fechamento} emailTemplatesByStep={emailTemplatesByStep} emailCtx={emailCtx} emailPlaceholders={emailPlaceholders} />
         </div>
       </div>
     </div>

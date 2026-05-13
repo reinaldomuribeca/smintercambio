@@ -2,24 +2,36 @@
 
 import { useState, useActionState, useRef, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
-import { Check, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, Lock, Mail, Send, Copy, CheckCheck } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, Lock, Mail, Send, Copy, CheckCheck, Paperclip, X } from 'lucide-react'
 import { concluirEtapa, devolverEtapa } from '@/lib/actions/fechamento'
 import { sendEmailFechamento } from '@/lib/actions/email-templates'
 import type { FechamentoData, FechamentoActionState } from '@/lib/actions/fechamento'
 import type { EmailTemplateItem } from '@/lib/actions/email-templates'
+import type { EmailPlaceholderItem } from '@/lib/actions/email-placeholders'
 import { ETAPAS_DEF } from '@/lib/fechamento-config'
 import type { EtapaRole } from '@/lib/fechamento-config'
 
 // ─── Email types (exported for the page) ─────────────────────────────────────
 
 export type EmailContext = {
-  leadNome:     string
-  leadEmail:    string
-  escolaNome:   string
-  paisNome:     string
-  consultorNome: string
-  embarqueEm:   string
-  retornoEm:    string
+  leadNome:            string
+  leadEmail:           string
+  leadTelefone:        string
+  leadCidade:          string
+  leadEstado:          string
+  nomeResponsaveis:    string
+  nomePai:             string
+  nomeMae:             string
+  emailResponsavel:    string
+  telefoneResponsavel: string
+  objetivoPrograma:    string
+  duracaoMeses:        string
+  destinosDesejados:   string
+  escolaNome:          string
+  paisNome:            string
+  embarqueEm:          string
+  retornoEm:           string
+  consultorNome:       string
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -169,23 +181,23 @@ function DevolverForm({
 
 const EMAIL_STEPS = [1, 4]
 
-const PLACEHOLDER_MAP: Record<string, keyof EmailContext> = {
-  '{{nome_aluno}}':    'leadNome',
-  '{{escola}}':        'escolaNome',
-  '{{pais}}':          'paisNome',
-  '{{consultor}}':     'consultorNome',
-  '{{data_embarque}}': 'embarqueEm',
-  '{{data_retorno}}':  'retornoEm',
-}
+const DATE_FIELDS = new Set<keyof EmailContext>(['embarqueEm', 'retornoEm'])
 
-function resolvePlaceholders(text: string, ctx: EmailContext): string {
+function resolvePlaceholders(
+  text: string,
+  ctx: EmailContext,
+  placeholders: EmailPlaceholderItem[],
+): string {
+  const tagMap: Record<string, keyof EmailContext> = Object.fromEntries(
+    placeholders.map((p) => [p.tag, p.campoSistema as keyof EmailContext])
+  )
   return text.replace(/\{\{[^}]+\}\}/g, (match) => {
-    const key = PLACEHOLDER_MAP[match]
+    const key = tagMap[match]
     if (!key) return match
     const val = ctx[key]
     if (!val) return match
-    if (key === 'embarqueEm' || key === 'retornoEm') {
-      return new Date(val).toLocaleDateString('pt-BR')
+    if (DATE_FIELDS.has(key)) {
+      try { return new Date(val).toLocaleDateString('pt-BR') } catch { return val }
     }
     return val
   })
@@ -202,28 +214,35 @@ function SendEmailBtn() {
   )
 }
 
-function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTemplateItem | null; ctx: EmailContext; stepNumero: number }) {
+function EmailComposePanel({
+  template,
+  ctx,
+  stepNumero,
+  placeholders,
+}: {
+  template: EmailTemplateItem | null
+  ctx: EmailContext
+  stepNumero: number
+  placeholders: EmailPlaceholderItem[]
+}) {
   const [destinatario, setDestinatario] = useState(ctx.leadEmail)
-  const [assunto, setAssunto] = useState('')
-  const [corpo, setCorpo] = useState('')
-  const [generated, setGenerated] = useState(false)
+  const [assunto, setAssunto]           = useState('')
+  const [corpo, setCorpo]               = useState('')
+  const [generated, setGenerated]       = useState(false)
+  const [anexos, setAnexos]             = useState<File[]>([])
+  const [copied, setCopied]             = useState(false)
+  const fileInputRef                    = useRef<HTMLInputElement>(null)
+
   const [sendState, sendAction] = useActionState(
-    async (_prev: { error?: string; success?: boolean } | null, fd: FormData) => {
-      return sendEmailFechamento(
-        fd.get('destinatario') as string,
-        fd.get('assunto') as string,
-        fd.get('corpo') as string,
-        ctx.leadNome,
-      )
-    },
+    async (_prev: { error?: string; success?: boolean } | null, fd: FormData) =>
+      sendEmailFechamento(fd),
     null,
   )
-  const [copied, setCopied] = useState(false)
 
   function handleGenerate() {
     if (!template) return
-    setAssunto(resolvePlaceholders(template.assunto, ctx))
-    setCorpo(resolvePlaceholders(template.corpo, ctx))
+    setAssunto(resolvePlaceholders(template.assunto, ctx, placeholders))
+    setCorpo(resolvePlaceholders(template.corpo, ctx, placeholders))
     setGenerated(true)
   }
 
@@ -234,6 +253,16 @@ function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTempl
     })
   }
 
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files) return
+    setAnexos((prev) => [...prev, ...Array.from(e.target.files!)])
+    e.target.value = ''
+  }
+
+  function removeAnexo(idx: number) {
+    setAnexos((prev) => prev.filter((_, i) => i !== idx))
+  }
+
   return (
     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -241,7 +270,7 @@ function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTempl
           <Mail className="size-4" /> Enviar e-mail para o aluno
         </div>
         {!template && (
-          <span className="text-xs text-stone-400">Nenhum template vinculado a este step</span>
+          <span className="text-xs text-stone-400">Nenhum template vinculado</span>
         )}
       </div>
 
@@ -269,13 +298,26 @@ function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTempl
       )}
 
       {generated && (
-        <form action={sendAction} className="space-y-2">
+        <form
+          action={sendAction}
+          className="space-y-2"
+          onSubmit={(e) => {
+            // inject selected files into FormData before submit
+            const form = e.currentTarget
+            anexos.forEach((f) => {
+              const dt = new DataTransfer()
+              dt.items.add(f)
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.name = 'anexos'
+              input.files = dt.files
+              form.appendChild(input)
+            })
+          }}
+        >
           <div>
             <label className="mb-1 block text-xs font-medium text-stone-600">Destinatário</label>
-            <input
-              name="destinatario"
-              type="email"
-              value={destinatario}
+            <input name="destinatario" type="email" value={destinatario}
               onChange={(e) => setDestinatario(e.target.value)}
               placeholder="email@exemplo.com"
               className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
@@ -283,23 +325,54 @@ function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTempl
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-stone-600">Assunto</label>
-            <input
-              name="assunto"
-              value={assunto}
-              onChange={(e) => setAssunto(e.target.value)}
+            <input name="assunto" value={assunto} onChange={(e) => setAssunto(e.target.value)}
               placeholder="Assunto do e-mail"
               className="w-full rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-stone-600">Corpo</label>
-            <textarea
-              name="corpo"
-              value={corpo}
-              onChange={(e) => setCorpo(e.target.value)}
+            <textarea name="corpo" value={corpo} onChange={(e) => setCorpo(e.target.value)}
               rows={8}
               className="w-full resize-y rounded-lg border border-cream-200 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
             />
+          </div>
+
+          {/* Anexos */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-stone-600">Anexos</label>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800"
+              >
+                <Paperclip className="size-3" /> Adicionar arquivo
+              </button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFiles}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
+            />
+            {anexos.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {anexos.map((f, i) => (
+                  <span key={i}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2 py-0.5 text-xs text-stone-700"
+                  >
+                    <Paperclip className="size-3 text-stone-400" />
+                    <span className="max-w-[140px] truncate">{f.name}</span>
+                    <button type="button" onClick={() => removeAnexo(i)} className="text-stone-400 hover:text-red-500">
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {sendState?.error && (
@@ -311,18 +384,14 @@ function EmailComposePanel({ template, ctx, stepNumero }: { template: EmailTempl
 
           <div className="flex items-center gap-2 pt-1 flex-wrap">
             <SendEmailBtn />
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={!corpo}
+            <button type="button" onClick={handleCopy} disabled={!corpo}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cream-200 bg-white px-3 py-2 text-sm text-stone-600 hover:bg-cream-50 disabled:opacity-40"
             >
               {copied ? <CheckCheck className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
               {copied ? 'Copiado!' : 'Copiar corpo'}
             </button>
-            <button
-              type="button"
-              onClick={() => { setGenerated(false); setAssunto(''); setCorpo('') }}
+            <button type="button"
+              onClick={() => { setGenerated(false); setAssunto(''); setCorpo(''); setAnexos([]) }}
               className="text-xs text-stone-400 hover:text-stone-600 ml-auto"
             >
               Refazer
@@ -345,9 +414,10 @@ type EtapaCardProps = {
   total: number
   emailTemplate: EmailTemplateItem | null
   emailCtx: EmailContext
+  emailPlaceholders: EmailPlaceholderItem[]
 }
 
-function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, total, emailTemplate, emailCtx }: EtapaCardProps) {
+function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, total, emailTemplate, emailCtx, emailPlaceholders }: EtapaCardProps) {
   const isCurrent = def.numero === etapaAtual
   const isConcluida = def.numero < etapaAtual || (def.numero === etapaAtual && concluidaEm !== null)
   const isLocked = def.numero > etapaAtual
@@ -488,7 +558,7 @@ function EtapaCard({ def, etapaAtual, fechamentoId, dadosSalvos, concluidaEm, to
               )}
 
               {EMAIL_STEPS.includes(def.numero) && (
-                <EmailComposePanel template={emailTemplate} ctx={emailCtx} stepNumero={def.numero} />
+                <EmailComposePanel template={emailTemplate} ctx={emailCtx} stepNumero={def.numero} placeholders={emailPlaceholders} />
               )}
             </>
           )}
@@ -504,9 +574,10 @@ type Props = {
   fechamento: FechamentoData
   emailTemplatesByStep: Record<number, EmailTemplateItem>
   emailCtx: EmailContext
+  emailPlaceholders: EmailPlaceholderItem[]
 }
 
-export function FechamentoFlow({ fechamento, emailTemplatesByStep, emailCtx }: Props) {
+export function FechamentoFlow({ fechamento, emailTemplatesByStep, emailCtx, emailPlaceholders }: Props) {
   const etapaMap = new Map(fechamento.etapas.map((e) => [e.numero, e]))
 
   if (fechamento.concluido) {
@@ -537,6 +608,7 @@ export function FechamentoFlow({ fechamento, emailTemplatesByStep, emailCtx }: P
                 concluidaEm={etapa?.concluidaEm ?? null}
                 total={ETAPAS_DEF.length}
                 emailTemplate={emailTemplatesByStep[def.numero] ?? null}
+                emailPlaceholders={emailPlaceholders}
                 emailCtx={emailCtx}
               />
             )
@@ -574,6 +646,7 @@ export function FechamentoFlow({ fechamento, emailTemplatesByStep, emailCtx }: P
             concluidaEm={etapa?.concluidaEm ?? null}
             total={ETAPAS_DEF.length}
             emailTemplate={emailTemplatesByStep[def.numero] ?? null}
+                emailPlaceholders={emailPlaceholders}
             emailCtx={emailCtx}
           />
         )

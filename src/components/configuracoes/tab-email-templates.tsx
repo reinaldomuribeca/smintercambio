@@ -10,17 +10,7 @@ import {
   type EmailTemplateItem,
   type EmailTemplateState,
 } from '@/lib/actions/email-templates'
-
-// ─── Placeholders reference ───────────────────────────────────────────────────
-
-const PLACEHOLDERS = [
-  { tag: '{{nome_aluno}}',    desc: 'Nome do aluno' },
-  { tag: '{{escola}}',        desc: 'Nome da escola' },
-  { tag: '{{pais}}',          desc: 'País de destino' },
-  { tag: '{{consultor}}',     desc: 'Nome do consultor' },
-  { tag: '{{data_embarque}}', desc: 'Data de embarque' },
-  { tag: '{{data_retorno}}',  desc: 'Data de retorno' },
-]
+import type { EmailPlaceholderItem } from '@/lib/actions/email-placeholders'
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -64,11 +54,13 @@ function TemplateForm({
   defaultValues,
   onClose,
   submitLabel,
+  placeholders,
 }: {
   action: (prev: EmailTemplateState, fd: FormData) => Promise<EmailTemplateState>
   defaultValues?: EmailTemplateItem
   onClose: () => void
   submitLabel: string
+  placeholders: EmailPlaceholderItem[]
 }) {
   const [state, formAction] = useActionState(action, null)
 
@@ -107,19 +99,26 @@ function TemplateForm({
         <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-stone-500">
           <Info className="size-3.5" /> Placeholders disponíveis (clique para copiar)
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {PLACEHOLDERS.map((p) => (
-            <button
-              key={p.tag}
-              type="button"
-              title={p.desc}
-              onClick={() => navigator.clipboard.writeText(p.tag)}
-              className="rounded-md bg-white border border-cream-200 px-2 py-0.5 font-mono text-[11px] text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition-colors"
-            >
-              {p.tag}
-            </button>
-          ))}
-        </div>
+        {placeholders.length === 0 ? (
+          <p className="text-xs text-stone-400">
+            Nenhum placeholder configurado. Crie em{' '}
+            <span className="font-medium text-amber-700">Configurações → Placeholders de E-mail</span>.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {placeholders.map((p) => (
+              <button
+                key={p.tag}
+                type="button"
+                title={p.label}
+                onClick={() => navigator.clipboard.writeText(p.tag)}
+                className="rounded-md bg-white border border-cream-200 px-2 py-0.5 font-mono text-[11px] text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition-colors"
+              >
+                {p.tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
@@ -149,7 +148,7 @@ function TemplateForm({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function TabEmailTemplates({ templates }: { templates: EmailTemplateItem[] }) {
+export function TabEmailTemplates({ templates, placeholders }: { templates: EmailTemplateItem[]; placeholders: EmailPlaceholderItem[] }) {
   const [showCreate, setShowCreate]         = useState(false)
   const [editing, setEditing]               = useState<EmailTemplateItem | null>(null)
   const [previewing, setPreviewing]         = useState<EmailTemplateItem | null>(null)
@@ -247,14 +246,14 @@ export function TabEmailTemplates({ templates }: { templates: EmailTemplateItem[
       {/* Create dialog */}
       {showCreate && (
         <Dialog title="Novo template de e-mail" onClose={() => setShowCreate(false)}>
-          <TemplateForm action={createEmailTemplate} onClose={() => setShowCreate(false)} submitLabel="Criar template" />
+          <TemplateForm action={createEmailTemplate} onClose={() => setShowCreate(false)} submitLabel="Criar template" placeholders={placeholders} />
         </Dialog>
       )}
 
       {/* Edit dialog */}
       {editing && (
         <Dialog title="Editar template" onClose={() => setEditing(null)}>
-          <TemplateForm action={updateEmailTemplate} defaultValues={editing} onClose={() => setEditing(null)} submitLabel="Salvar" />
+          <TemplateForm action={updateEmailTemplate} defaultValues={editing} onClose={() => setEditing(null)} submitLabel="Salvar" placeholders={placeholders} />
         </Dialog>
       )}
 

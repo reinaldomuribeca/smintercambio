@@ -10,6 +10,7 @@ import type { TemplateDoc } from '@/lib/actions/configuracoes'
 import type { FunilEtapaRow } from '@/components/configuracoes/tab-funil'
 import { listPaises, listEscolas } from '@/lib/actions/destinos'
 import { listEmailTemplates } from '@/lib/actions/email-templates'
+import { listEmailPlaceholders } from '@/lib/actions/email-placeholders'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +45,7 @@ export default async function ConfiguracoesPage() {
     )
   }
 
-  const [usuarios, templates, etapas, paises, escolas, emailTemplates] = await Promise.all([
+  const [usuarios, templates, etapas, paises, escolas, emailTemplates, emailPlaceholders] = await Promise.all([
     prisma.user.findMany({
       select: { id: true, nome: true, email: true, role: true, ativo: true, createdAt: true },
       orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
@@ -58,7 +59,8 @@ export default async function ConfiguracoesPage() {
     }),
     listPaises(),
     listEscolas(),
-    listEmailTemplates(),
+    listEmailTemplates().catch(() => []),
+    listEmailPlaceholders().catch(() => []),
   ])
 
   const usuariosRows: UsuarioRow[] = usuarios.map((u) => ({
@@ -91,7 +93,7 @@ export default async function ConfiguracoesPage() {
 
       {/* Tabs */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <ConfiguracoesAbas usuarios={usuariosRows} templates={templateMap} etapas={etapasRows} paises={paises} escolas={escolas} emailTemplates={emailTemplates} />
+        <ConfiguracoesAbas usuarios={usuariosRows} templates={templateMap} etapas={etapasRows} paises={paises} escolas={escolas} emailTemplates={emailTemplates} emailPlaceholders={emailPlaceholders} />
       </div>
     </div>
   )

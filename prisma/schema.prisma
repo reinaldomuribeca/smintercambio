@@ -602,6 +602,20 @@ model ChecklistTemplate {
   @@map("checklist_templates")
 }
 
+// ─── Email Placeholders ───────────────────────────────────────────────────────
+
+model EmailPlaceholder {
+  id           String @id @default(cuid())
+  tag          String @unique   // e.g., "{{nome_aluno}}"
+  label        String           // e.g., "Nome do aluno"
+  campoSistema String @map("campo_sistema") // key in EmailContext
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_placeholders")
+}
+
 // ─── Email Templates ──────────────────────────────────────────────────────────
 
 model EmailTemplate {

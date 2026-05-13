@@ -102,17 +102,29 @@ export async function deleteEmailTemplate(id: string): Promise<{ error?: string 
 // ─── sendEmailFechamento ──────────────────────────────────────────────────────
 
 export async function sendEmailFechamento(
-  destinatario: string,
-  assunto: string,
-  corpo: string,
-  leadNome: string,
+  formData: FormData,
 ): Promise<{ error?: string; success?: boolean }> {
   await getAuth()
+
+  const destinatario = (formData.get('destinatario') as string | null)?.trim() ?? ''
+  const assunto      = (formData.get('assunto')      as string | null)?.trim() ?? ''
+  const corpo        = (formData.get('corpo')        as string | null)?.trim() ?? ''
 
   if (!destinatario || !assunto || !corpo) return { error: 'Preencha todos os campos.' }
 
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { error: 'Envio de e-mail não configurado. Configure RESEND_API_KEY.' }
+
+  // Collect attachments from FormData
+  const files = formData.getAll('anexos') as File[]
+  const attachments = await Promise.all(
+    files
+      .filter((f) => f instanceof File && f.size > 0)
+      .map(async (f) => ({
+        filename: f.name,
+        content: Buffer.from(await f.arrayBuffer()),
+      }))
+  )
 
   const { Resend } = await import('resend')
   const resend = new Resend(apiKey)
@@ -124,6 +136,7 @@ export async function sendEmailFechamento(
     to: [destinatario],
     subject: assunto,
     text: corpo,
+    ...(attachments.length > 0 && { attachments }),
   })
 
   if (error) {
