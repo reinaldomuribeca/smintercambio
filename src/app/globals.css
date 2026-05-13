@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  /* Azul escuro — sidebar e elementos principais */
+  --color-navy-950: #050D1C;
+  --color-navy-900: #0B1F3A;
+  --color-navy-800: #122D52;
+  --color-navy-700: #1A3A66;
+  --color-navy-600: #3A6090;
+
+  /* Azul accent — destaques e elementos ativos */
+  --color-amber-600: #1565A8;
+  --color-amber-500: #2980C4;
+  --color-amber-400: #60B4F0;
+  --color-amber-100: #DCF0FF;
+
+  /* Superfícies brancas */
+  --color-cream-50:  #FFFFFF;
+  --color-cream-100: #F4F7FB;
+  --color-cream-200: #E2E8F0;
+  --color-cream-300: #CBD5E1;
+
+  /* Tipografia */
+  --font-brand: var(--font-cormorant);
+  --font-ui:    var(--font-jakarta);
+}
+
+:root {
+  --bg-page: #FFFFFF;
+  --fg-page: #1E293B;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background-color: var(--bg-page);
+  color: var(--fg-page);
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

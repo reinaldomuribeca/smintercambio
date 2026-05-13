@@ -1,0 +1,617 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum EscolaTipo {
+  PUBLICA
+  PRIVADA
+  UNIVERSIDADE
+  IDIOMAS
+  OUTRO
+}
+
+enum JornadaFase {
+  FECHAMENTO_MATRICULA
+  PREPARACAO_VIAGEM
+}
+
+enum CampoTipo {
+  TEXTO
+  DATA
+  BOOLEAN
+  ARQUIVO
+  LINK
+  SELECT
+  NUMERO
+  TEXTO_LONGO
+}
+
+enum JornadaEtapaStatus {
+  NAO_INICIADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  PENDENTE_DOC
+}
+
+enum JornadaStatus {
+  FECHAMENTO_MATRICULA
+  PREPARACAO_VIAGEM
+  VIAJANDO
+  RETORNOU
+}
+
+enum FechamentoEtapaStatus {
+  PENDENTE
+  CONCLUIDO
+  DEVOLVIDO
+}
+
+enum PreEmbarqueModalidade {
+  PRESENCIAL
+  ONLINE
+}
+
+enum PreEmbarqueStatus {
+  PENDENTE
+  REALIZADO
+}
+
+enum Role {
+  DIRECAO
+  CONSULTOR
+  ADMINISTRATIVO
+  OPERACOES
+  FINANCEIRO
+}
+
+
+enum ObjetivoPrograma {
+  HIGH_SCHOOL
+  BOARDING_SCHOOL
+  SUMMER
+  IDIOMA
+  COLLEGE
+  EXPERIENCIA_CURTA
+}
+
+enum TarefaTipo {
+  FOLLOWUP
+  DOCUMENTO
+  REUNIAO
+  ALERTA
+  OUTRO
+  FECHAMENTO
+}
+
+enum TarefaStatus {
+  PENDENTE
+  CONCLUIDA
+  CANCELADA
+}
+
+enum HistoricoTipo {
+  REUNIAO
+  MENSAGEM
+  EMAIL
+  ARQUIVO
+  NOTA
+}
+
+enum ComissaoStatus {
+  PENDENTE
+  PARCIAL
+  RECEBIDA
+}
+
+enum OrigemLead {
+  INDICACAO
+  INSTAGRAM
+  FACEBOOK
+  GOOGLE
+  SITE
+  FEIRA
+  EVENTO
+  WHATSAPP
+  OUTRO
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+// id = Supabase auth.users.id (UUID), sincronizado via trigger no banco
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  nome      String
+  role      Role
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  leads      Lead[]               @relation("ConsultorLead")
+  tarefas    Tarefa[]
+  historicos HistoricoInteracao[]
+  preEmbarques PreEmbarque[]
+
+  @@map("users")
+}
+
+model Lead {
+  id               String      @id @default(cuid())
+  nome             String      // Nome do aluno
+  dataNascimento   DateTime?
+  serieAtual       String?
+  escolaAtual      String?
+  cidade           String?
+  estado           String?     // Sigla (ex: SP)
+  nomeResponsaveis String?
+  telefone         String?
+  email            String?
+  origemLead       OrigemLead?
+  observacoes      String?
+  funilStatus      String      @default("NOVO_LEAD")
+  motivoPerda      String?     // Obrigatório ao mover para Perdido
+  consultorId      String      @db.Uuid
+  consultor        User        @relation("ConsultorLead", fields: [consultorId], references: [id])
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  diagnostico Diagnostico?
+  aplicacao   Aplicacao?
+  financeiro  Financeiro?
+  tarefas     Tarefa[]
+  historicos  HistoricoInteracao[]
+  jornada     EstudanteJornada?
+
+  @@map("leads")
+}
+
+model Diagnostico {
+  id     String @id @default(cuid())
+  leadId String @unique
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Perfil do aluno
+  nomeAluno      String?
+  idadeAluno     Int?
+  anoEscolar     String?
+  notasEscolares String?
+  nivelIngles    String?
+
+  // Objetivo e programa
+  objetivoPrograma ObjetivoPrograma?
+  destinosDesejados String[]           @default([])
+  duracaoMeses      Int?
+  anoPartidaPrevisto Int?
+
+  // Budget
+  budgetBRL    Float?
+  financiamento Boolean?
+
+  // Responsáveis / decisores (pais)
+  nomePai             String?
+  nomeMae             String?
+  emailResponsavel    String?
+  telefoneResponsavel String?
+
+  // Análise consultora
+  riscos       String?
+  observacoes  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("diagnosticos")
+}
+
+model Aplicacao {
+  id     String @id @default(cuid())
+  leadId String @unique
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Escola / instituição
+  nomeEscola  String?
+  paisEscola  String?
+
+  // Portal externo (OpenApply, True North, Juno, etc.)
+  portalNome  String?
+  portalUrl   String?
+  portalLogin String?
+
+  // Offer da escola
+  offerRecebidaEm       DateTime?
+  offerEnviadaFamiliaEm DateTime?
+  offerDeadline         DateTime?
+  offerValorDeposito    Float?
+  offerDetalhes         String?
+
+  // Checklist de documentos
+  // JSON array: [{ nome, obrigatorio, status: PENDENTE|ENVIADO|APROVADO }]
+  checklistDocs Json @default("[]")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("aplicacoes")
+}
+
+model Financeiro {
+  id     String @id @default(cuid())
+  leadId String @unique
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Valores sempre na moeda original; BRL = valor * cambioUsado
+  moeda          String?   // ISO 4217: USD, GBP, CAD, EUR...
+  cambioUsado    Float?
+  dataFechamento DateTime?
+
+  // Valores do programa
+  tuitionValor   Float?
+  valorBoarding  Float?
+  valorSeguro    Float?
+  taxasExtras    Float?
+
+  // Taxas iniciais (em moeda original)
+  applicationFee     Float?
+  registrationFee    Float?
+  acceptanceDeposit  Float?
+
+  // Serviços SM
+  taxaAdministrativa Float?
+  consultoriaSM      Float?
+
+  // Comissão SM
+  comissaoPrevista     Float?
+  comissaoRecebida     Float?
+  comissaoDataPrevista DateTime?
+  comissaoStatus       ComissaoStatus @default(PENDENTE)
+
+  // Pagamentos da família
+  // JSON array: [{ descricao, valor, moeda, dataPago }]
+  pagamentosFamilia Json @default("[]")
+
+  observacoes String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("financeiros")
+}
+
+model Tarefa {
+  id              String       @id @default(cuid())
+  leadId          String
+  lead            Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  responsavelId   String       @db.Uuid
+  responsavel     User         @relation(fields: [responsavelId], references: [id])
+
+  titulo      String
+  descricao   String?
+  tipo        TarefaTipo
+  status      TarefaStatus @default(PENDENTE)
+  prazo       DateTime?
+  concluidaEm DateTime?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([leadId])
+  @@index([responsavelId])
+  @@index([status, prazo])
+  @@map("tarefas")
+}
+
+model HistoricoInteracao {
+  id      String @id @default(cuid())
+  leadId  String
+  lead    Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  autorId String @db.Uuid
+  autor   User   @relation(fields: [autorId], references: [id])
+
+  tipo       HistoricoTipo
+  titulo     String?
+  conteudo   String?
+  arquivoUrl String?       // URL do Supabase Storage
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([leadId])
+  @@map("historicos_interacao")
+}
+
+model FunilEtapa {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  nome       String
+  cor        String   @default("#94a3b8")
+  macroetapa String @default("")
+  ordem      Int
+  ativa      Boolean  @default(true)
+  perdido    Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("funil_etapas")
+}
+
+// ─── Destino: Países e Escolas ───────────────────────────────────────────────
+
+model Pais {
+  id              String   @id @default(cuid())
+  nome            String
+  bandeira        String?
+  moeda           String?
+  idioma          String?
+  regrasImigracao String?
+  documentos      Json     @default("[]")
+  observacoes     String?
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  estados         Estado[]
+
+  @@map("paises")
+}
+
+model Estado {
+  id        String   @id @default(cuid())
+  paisId    String
+  pais      Pais     @relation(fields: [paisId], references: [id], onDelete: Cascade)
+  nome      String
+  sigla     String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cidades   Cidade[]
+
+  @@map("estados")
+}
+
+model Cidade {
+  id        String   @id @default(cuid())
+  estadoId  String
+  estado    Estado   @relation(fields: [estadoId], references: [id], onDelete: Cascade)
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  escolas   Escola[]
+
+  @@map("cidades")
+}
+
+model Escola {
+  id         String     @id @default(cuid())
+  cidadeId   String
+  cidade     Cidade     @relation(fields: [cidadeId], references: [id])
+  nome       String
+  tipo       EscolaTipo @default(OUTRO)
+  endereco   String?
+  website    String?
+  regras     String?
+  documentos Json       @default("[]")
+  ativo      Boolean    @default(true)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  contatos        EscolaContato[]
+  etapaTemplates  JornadaEtapaTemplate[]
+  jornadas        EstudanteJornada[]
+
+  @@map("escolas")
+}
+
+model EscolaContato {
+  id       String  @id @default(cuid())
+  escolaId String
+  escola   Escola  @relation(fields: [escolaId], references: [id], onDelete: Cascade)
+  nome     String
+  cargo    String?
+  email    String?
+  telefone String?
+
+  @@map("escola_contatos")
+}
+
+model JornadaEtapaTemplate {
+  id             String       @id @default(cuid())
+  escolaId       String
+  escola         Escola       @relation(fields: [escolaId], references: [id], onDelete: Cascade)
+  numero         Int
+  nome           String
+  descricao      String?
+  prazoDiasAntes Int?
+  observacoes    String?
+  fase           JornadaFase  @default(FECHAMENTO_MATRICULA)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  campos          JornadaCampoTemplate[]
+  etapasEstudante EstudanteJornadaEtapa[]
+
+  @@map("jornada_etapa_templates")
+}
+
+model JornadaCampoTemplate {
+  id          String    @id @default(cuid())
+  etapaId     String
+  etapa       JornadaEtapaTemplate @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  nome        String
+  tipo        CampoTipo
+  obrigatorio Boolean   @default(false)
+  placeholder String?
+  opcoes      String?
+  ordem       Int       @default(0)
+
+  valores EstudanteEtapaValor[]
+
+  @@map("jornada_campo_templates")
+}
+
+// ─── Jornada do Estudante ────────────────────────────────────────────────────
+
+model EstudanteJornada {
+  id         String        @id @default(cuid())
+  leadId     String        @unique
+  lead       Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  escolaId   String
+  escola     Escola        @relation(fields: [escolaId], references: [id])
+  embarqueEm DateTime?
+  retornoEm  DateTime?
+  status     JornadaStatus @default(FECHAMENTO_MATRICULA)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  etapas              EstudanteJornadaEtapa[]
+  preEmbarque         PreEmbarque?
+  fechamentoMatricula FechamentoMatricula?
+
+  @@map("estudante_jornadas")
+}
+
+model FechamentoMatricula {
+  id         String   @id @default(cuid())
+  jornadaId  String   @unique
+  jornada    EstudanteJornada @relation(fields: [jornadaId], references: [id], onDelete: Cascade)
+  etapaAtual Int      @default(1)
+  concluido  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  etapas FechamentoEtapa[]
+
+  @@map("fechamento_matriculas")
+}
+
+model FechamentoEtapa {
+  id           String                @id @default(cuid())
+  fechamentoId String
+  fechamento   FechamentoMatricula   @relation(fields: [fechamentoId], references: [id], onDelete: Cascade)
+  numero       Int
+  status       FechamentoEtapaStatus @default(PENDENTE)
+  dados        Json                  @default("{}")
+  concluidaEm  DateTime?
+  concluidaPor String?               @db.Uuid
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@unique([fechamentoId, numero])
+  @@map("fechamento_etapas")
+}
+
+model EstudanteJornadaEtapa {
+  id              String             @id @default(cuid())
+  jornadaId       String
+  jornada         EstudanteJornada   @relation(fields: [jornadaId], references: [id], onDelete: Cascade)
+  etapaTemplateId String
+  etapaTemplate   JornadaEtapaTemplate @relation(fields: [etapaTemplateId], references: [id])
+  status          JornadaEtapaStatus @default(NAO_INICIADO)
+  concluidaEm     DateTime?
+  notasConsultor  String?
+  updatedBy       String?            @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  valores    EstudanteEtapaValor[]
+  documentos EstudanteEtapaDocumento[]
+
+  @@map("estudante_jornada_etapas")
+}
+
+model EstudanteEtapaValor {
+  id        String               @id @default(cuid())
+  etapaId   String
+  etapa     EstudanteJornadaEtapa @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  campoId   String
+  campo     JornadaCampoTemplate @relation(fields: [campoId], references: [id])
+  valor     String?
+  updatedAt DateTime             @updatedAt @map("updated_at")
+  updatedBy String?              @db.Uuid
+
+  @@unique([etapaId, campoId])
+  @@map("estudante_etapa_valores")
+}
+
+model EstudanteEtapaDocumento {
+  id         String               @id @default(cuid())
+  etapaId    String
+  etapa      EstudanteJornadaEtapa @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  nome       String
+  fileUrl    String
+  fileType   String?
+  uploadedAt DateTime             @default(now()) @map("uploaded_at")
+  uploadedBy String               @db.Uuid
+
+  @@map("estudante_etapa_documentos")
+}
+
+// ─── Pré-Embarque ────────────────────────────────────────────────────────────
+
+model PreEmbarque {
+  id                   String                @id @default(cuid())
+  jornadaId            String                @unique
+  jornada              EstudanteJornada      @relation(fields: [jornadaId], references: [id], onDelete: Cascade)
+  dataReuniao          DateTime?
+  modalidade           PreEmbarqueModalidade @default(PRESENCIAL)
+  linkReuniao          String?
+  consultorId          String?               @db.Uuid
+  consultor            User?                 @relation(fields: [consultorId], references: [id])
+  estudantePresente    String?
+  responsavel1Nome     String?
+  responsavel1Presente String?
+  responsavel2Nome     String?
+  responsavel2Presente String?
+  observacoes          String?
+  status               PreEmbarqueStatus     @default(PENDENTE)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  itens PreEmbarqueItem[]
+
+  @@map("pre_embarques")
+}
+
+model PreEmbarqueItem {
+  id            String      @id @default(cuid())
+  preEmbarqueId String
+  preEmbarque   PreEmbarque @relation(fields: [preEmbarqueId], references: [id], onDelete: Cascade)
+  label         String
+  marcado       Boolean     @default(false)
+  observacao    String?
+  ordem         Int         @default(0)
+
+  @@map("pre_embarque_itens")
+}
+
+model ChecklistTemplate {
+  id               String           @id @default(cuid())
+  objetivoPrograma ObjetivoPrograma @unique
+  // JSON array: [{ nome: string, obrigatorio: boolean }]
+  documentos       Json             @default("[]")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("checklist_templates")
+}
+
+// ─── Email Templates ──────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id      String @id @default(cuid())
+  nome    String
+  assunto String
+  corpo   String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
