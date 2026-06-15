@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { createClient } from '@supabase/supabase-js'
 import { DEFAULT_FUNIL_ETAPAS } from '../src/lib/funil-etapas'
 import { DEFAULT_CHECKLIST_TEMPLATES } from '../src/lib/checklist-templates'
+import { DEFAULT_EMAIL_PLACEHOLDERS } from '../src/lib/email-placeholders-config'
 
 const url = process.env.DATABASE_URL
 if (!url) throw new Error('DATABASE_URL não configurado — defina antes de rodar o seed.')
@@ -71,9 +72,21 @@ async function seedDirecaoInicial() {
   console.log(`✓ DIRECAO inicial criada: ${email}`)
 }
 
+async function seedEmailPlaceholders() {
+  for (const p of DEFAULT_EMAIL_PLACEHOLDERS) {
+    await prisma.emailPlaceholder.upsert({
+      where: { tag: p.tag },
+      create: p,
+      update: { label: p.label, campoSistema: p.campoSistema },
+    })
+  }
+  console.log(`✓ Placeholders de e-mail: ${DEFAULT_EMAIL_PLACEHOLDERS.length}`)
+}
+
 async function main() {
   await seedFunilEtapas()
   await seedChecklistTemplates()
+  await seedEmailPlaceholders()
   await seedDirecaoInicial()
 }
 
