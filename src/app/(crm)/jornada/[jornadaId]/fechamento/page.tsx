@@ -6,6 +6,7 @@ import { getOrCreateFechamento } from '@/lib/actions/fechamento'
 import { listEmailTemplates } from '@/lib/actions/email-templates'
 import { listEmailPlaceholders } from '@/lib/actions/email-placeholders'
 import { prisma } from '@/lib/prisma'
+import { labelObjetivoPrograma } from '@/lib/objetivo-programa'
 import { ArrowLeft, FileCheck2 } from 'lucide-react'
 import { FechamentoFlow } from '@/components/jornada/fechamento-flow'
 import type { EmailContext } from '@/components/jornada/fechamento-flow'
@@ -69,7 +70,7 @@ export default async function FechamentoPage({ params }: { params: Params }) {
     nomeMae:             leadExtra?.diagnostico?.nomeMae ?? '',
     emailResponsavel:    leadExtra?.diagnostico?.emailResponsavel ?? '',
     telefoneResponsavel: leadExtra?.diagnostico?.telefoneResponsavel ?? '',
-    objetivoPrograma:    leadExtra?.diagnostico?.objetivoPrograma ?? '',
+    objetivoPrograma:    labelObjetivoPrograma(leadExtra?.diagnostico?.objetivoPrograma),
     duracaoMeses:        leadExtra?.diagnostico?.duracaoMeses?.toString() ?? '',
     destinosDesejados:   (leadExtra?.diagnostico?.destinosDesejados ?? []).join(', '),
     escolaNome:          jornada.escolaNome,

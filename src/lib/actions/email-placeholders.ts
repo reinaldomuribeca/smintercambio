@@ -4,7 +4,29 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { CAMPOS_SISTEMA } from '@/lib/email-placeholders-config'
 import { Role } from '@prisma/client'
+
+// Campos válidos do sistema (catálogo). Usado para garantir que toda tag aponte
+// para um campo realmente existente no contexto de substituição.
+const CAMPO_VALUES = new Set<string>(CAMPOS_SISTEMA.map((c) => c.value))
+const TAG_INNER = /^[a-z0-9_]+$/ // minúsculas, números e underline
+
+/** Valida e normaliza a tag (sem chaves) e o campoSistema. */
+function validatePlaceholder(
+  tagRaw: string,
+  campoSistema: string,
+): { error: string } | { tag: string } {
+  const inner = tagRaw.replace(/^\{\{|\}\}$/g, '').trim()
+  if (!inner) return { error: 'Tag inválida.' }
+  if (!TAG_INNER.test(inner)) {
+    return { error: 'A tag deve conter apenas letras minúsculas, números e underline (ex: nome_aluno).' }
+  }
+  if (!CAMPO_VALUES.has(campoSistema)) {
+    return { error: 'Campo do sistema inválido. Selecione um dos campos disponíveis.' }
+  }
+  return { tag: `{{${inner}}}` }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,10 +76,9 @@ export async function createEmailPlaceholder(
 
   if (!tagRaw || !label || !campoSistema) return { error: 'Todos os campos são obrigatórios.' }
 
-  // Normalise: strip braces, then wrap
-  const inner = tagRaw.replace(/^\{\{|\}\}$/g, '').trim()
-  if (!inner) return { error: 'Tag inválida.' }
-  const tag = `{{${inner}}}`
+  const valid = validatePlaceholder(tagRaw, campoSistema)
+  if ('error' in valid) return valid
+  const { tag } = valid
 
   try {
     await prisma.emailPlaceholder.create({ data: { tag, label, campoSistema } })
@@ -85,9 +106,9 @@ export async function updateEmailPlaceholder(
 
   if (!id || !tagRaw || !label || !campoSistema) return { error: 'Todos os campos são obrigatórios.' }
 
-  const inner = tagRaw.replace(/^\{\{|\}\}$/g, '').trim()
-  if (!inner) return { error: 'Tag inválida.' }
-  const tag = `{{${inner}}}`
+  const valid = validatePlaceholder(tagRaw, campoSistema)
+  if ('error' in valid) return valid
+  const { tag } = valid
 
   try {
     await prisma.emailPlaceholder.update({ where: { id }, data: { tag, label, campoSistema } })

@@ -7,6 +7,7 @@ import { differenceInDays, format, startOfMonth } from 'date-fns'
 import { BarChart2 } from 'lucide-react'
 import type { ChecklistItem } from '@/lib/actions/aplicacao'
 import { toBRL, sumBRL, decToNum } from '@/lib/utils/financeiro'
+import { PROGRAMA_LABEL } from '@/lib/objetivo-programa'
 import { getProductivityMetrics } from '@/lib/actions/tarefas'
 import { RelatoriosAbas, type RelatoriosData } from '@/components/relatorios/relatorios-abas'
 import { RelatoriosFiltros } from '@/components/relatorios/relatorios-filtros'
@@ -49,15 +50,6 @@ const ORIGEM_LABEL: Record<string, string> = {
   EVENTO:    'Evento',
   WHATSAPP:  'WhatsApp',
   OUTRO:     'Outro',
-}
-
-const PROGRAMA_LABEL: Record<string, string> = {
-  HIGH_SCHOOL:      'High School',
-  BOARDING_SCHOOL:  'Boarding School',
-  SUMMER:           'Summer',
-  IDIOMA:           'Idioma',
-  COLLEGE:          'College',
-  EXPERIENCIA_CURTA: 'Experiência Curta',
 }
 
 const PERDA_LABEL: Record<string, string> = {

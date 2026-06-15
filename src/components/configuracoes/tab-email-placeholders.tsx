@@ -2,7 +2,7 @@
 
 import { useState, useActionState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
-import { Plus, Pencil, Trash2, X, Hash } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Hash, AlertTriangle } from 'lucide-react'
 import {
   createEmailPlaceholder,
   updateEmailPlaceholder,
@@ -201,12 +201,23 @@ export function TabEmailPlaceholders({ placeholders }: { placeholders: EmailPlac
                   <td className="px-4 py-3.5 font-mono text-sm text-amber-700">{p.tag}</td>
                   <td className="hidden px-4 py-3.5 text-stone-700 sm:table-cell">{p.label}</td>
                   <td className="hidden px-4 py-3.5 md:table-cell">
-                    <span className="rounded-full bg-stone-100 px-2 py-0.5 font-mono text-xs text-stone-500">
-                      {p.campoSistema}
-                    </span>
-                    <span className="ml-2 text-xs text-stone-400">
-                      {CAMPO_LABEL[p.campoSistema as keyof typeof CAMPO_LABEL] ?? p.campoSistema}
-                    </span>
+                    {CAMPO_LABEL[p.campoSistema as keyof typeof CAMPO_LABEL] ? (
+                      <>
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 font-mono text-xs text-stone-500">
+                          {p.campoSistema}
+                        </span>
+                        <span className="ml-2 text-xs text-stone-400">
+                          {CAMPO_LABEL[p.campoSistema as keyof typeof CAMPO_LABEL]}
+                        </span>
+                      </>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600"
+                        title="Esse campo não existe no catálogo do sistema — a tag não será substituída no e-mail. Edite e selecione um campo válido."
+                      >
+                        <AlertTriangle className="size-3" /> campo inválido: {p.campoSistema}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center justify-end gap-1">

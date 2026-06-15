@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useActionState, useTransition } from 'react'
+import { useState, useActionState, useTransition, useRef } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Plus, Pencil, Trash2, X, Mail, Info, Link2 } from 'lucide-react'
 import {
@@ -64,6 +64,32 @@ function TemplateForm({
 }) {
   const [state, formAction] = useActionState(action, null)
 
+  // Assunto e corpo controlados para permitir inserir placeholders no cursor.
+  const [assunto, setAssunto] = useState(defaultValues?.assunto ?? '')
+  const [corpo, setCorpo] = useState(defaultValues?.corpo ?? '')
+  const assuntoRef = useRef<HTMLInputElement>(null)
+  const corpoRef = useRef<HTMLTextAreaElement>(null)
+  // Campo que recebe a inserção ao clicar num placeholder (último que teve foco).
+  const [activeField, setActiveField] = useState<'assunto' | 'corpo'>('corpo')
+
+  function insertPlaceholder(tag: string) {
+    const isAssunto = activeField === 'assunto'
+    const el = isAssunto ? assuntoRef.current : corpoRef.current
+    const current = isAssunto ? assunto : corpo
+    const setter = isAssunto ? setAssunto : setCorpo
+    const start = el?.selectionStart ?? current.length
+    const end = el?.selectionEnd ?? current.length
+    const next = current.slice(0, start) + tag + current.slice(end)
+    setter(next)
+    // Reposiciona o cursor logo após a tag inserida.
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const pos = start + tag.length
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
   return (
     <form action={formAction} className="space-y-4">
       {defaultValues && <input type="hidden" name="id" value={defaultValues.id} />}
@@ -75,7 +101,16 @@ function TemplateForm({
         </div>
         <div className="sm:col-span-2">
           <label className={LABEL}>Assunto do e-mail *</label>
-          <input name="assunto" className={INPUT} defaultValue={defaultValues?.assunto} placeholder="Ex: Contrato e documentação — {{nome_aluno}}" required />
+          <input
+            ref={assuntoRef}
+            name="assunto"
+            className={INPUT}
+            value={assunto}
+            onChange={(e) => setAssunto(e.target.value)}
+            onFocus={() => setActiveField('assunto')}
+            placeholder="Ex: Contrato e documentação — {{nome_aluno}}"
+            required
+          />
         </div>
         <div className="sm:col-span-2">
           <label className={LABEL}>Vincular ao step de Fechamento e Matrícula</label>
@@ -94,10 +129,14 @@ function TemplateForm({
         </div>
       </div>
 
-      {/* Placeholders reference */}
+      {/* Placeholders — clicar insere a tag no cursor do campo ativo (assunto/corpo) */}
       <div className="rounded-lg border border-cream-200 bg-cream-50 p-3">
-        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-stone-500">
-          <Info className="size-3.5" /> Placeholders disponíveis (clique para copiar)
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-stone-500">
+          <Info className="size-3.5" />
+          Placeholders disponíveis — clique para inserir em
+          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700">
+            {activeField === 'assunto' ? 'Assunto' : 'Corpo'}
+          </span>
         </div>
         {placeholders.length === 0 ? (
           <p className="text-xs text-stone-400">
@@ -110,10 +149,13 @@ function TemplateForm({
               <button
                 key={p.tag}
                 type="button"
-                title={p.label}
-                onClick={() => navigator.clipboard.writeText(p.tag)}
-                className="rounded-md bg-white border border-cream-200 px-2 py-0.5 font-mono text-[11px] text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition-colors"
+                title={`${p.label} — clique para inserir`}
+                // preventDefault no mousedown evita que o campo perca o foco/cursor antes do clique
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertPlaceholder(p.tag)}
+                className="inline-flex items-center gap-1 rounded-md border border-cream-200 bg-white px-2 py-1 font-mono text-[11px] text-amber-700 transition-colors hover:border-amber-300 hover:bg-amber-50"
               >
+                <Plus className="size-3" />
                 {p.tag}
               </button>
             ))}
@@ -124,14 +166,17 @@ function TemplateForm({
       <div>
         <label className={LABEL}>Corpo do e-mail *</label>
         <textarea
+          ref={corpoRef}
           name="corpo"
           className={INPUT + ' resize-y font-mono text-xs'}
           rows={12}
-          defaultValue={defaultValues?.corpo}
+          value={corpo}
+          onChange={(e) => setCorpo(e.target.value)}
+          onFocus={() => setActiveField('corpo')}
           placeholder={`Olá {{nome_aluno}},\n\nSegue em anexo o contrato e as condições de pagamento para o seu intercâmbio em {{escola}}, {{pais}}.\n\nQualquer dúvida, entre em contato.\n\nAtenciosamente,\n{{consultor}}`}
           required
         />
-        <p className="mt-1 text-xs text-stone-400">Use os placeholders acima — eles serão substituídos pelos dados reais ao gerar o e-mail.</p>
+        <p className="mt-1 text-xs text-stone-400">Clique nos placeholders acima para inseri-los no cursor; serão substituídos pelos dados reais ao gerar o e-mail.</p>
       </div>
 
       {state?.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{state.error}</p>}
