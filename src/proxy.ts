@@ -28,6 +28,7 @@ export const config = {
     '/dashboard/:path*',
     '/leads/:path*',
     '/funil/:path*',
+    '/jornada/:path*',
     '/tarefas/:path*',
     '/relatorios/:path*',
     '/configuracoes/:path*',

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, closestCenter,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -32,6 +32,9 @@ export function FunilBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    // Acessibilidade: permite mover cards pelo teclado (Espaço para pegar/soltar,
+    // setas para navegar) — antes o kanban era inoperável sem mouse.
+    useSensor(KeyboardSensor),
   )
 
   const onDragStart = ({ active }: DragStartEvent) => {

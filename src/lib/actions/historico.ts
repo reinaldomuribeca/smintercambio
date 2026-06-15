@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { canAccessLead } from '@/lib/auth'
 import { HistoricoTipo, Role } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,7 +37,9 @@ async function getAuth() {
 // ─── getLeadHistorico ─────────────────────────────────────────────────────────
 
 export async function getLeadHistorico(leadId: string): Promise<HistoricoItem[]> {
-  await getAuth()
+  const user = await getAuth()
+  // Bloqueia leitura cruzada (IDOR): CONSULTOR/FINANCEIRO só veem leads permitidos.
+  if (!(await canAccessLead(leadId, user))) return []
 
   const rows = await prisma.historicoInteracao.findMany({
     where: { leadId },

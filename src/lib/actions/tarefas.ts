@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { canAccessLead } from '@/lib/auth'
 import { TarefaTipo, TarefaStatus, Role, Prisma } from '@prisma/client'
 
 export type ProductivityRow = {
@@ -75,7 +76,9 @@ function serialize(t: {
 // ─── getLeadTarefas ───────────────────────────────────────────────────────────
 
 export async function getLeadTarefas(leadId: string): Promise<TarefaItem[]> {
-  await getAuth()
+  const user = await getAuth()
+  // Bloqueia leitura cruzada (IDOR): CONSULTOR/FINANCEIRO só veem leads permitidos.
+  if (!(await canAccessLead(leadId, user))) return []
   const rows = await prisma.tarefa.findMany({
     where: { leadId },
     select: TAREFA_SELECT,

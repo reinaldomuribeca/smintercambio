@@ -222,12 +222,13 @@ function PortalSection({
   showLogin: boolean
 }) {
   const [state, action, isPending] = useActionState<PortalFormState, FormData>(updatePortal, null)
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [successHidden, setSuccessHidden] = useState<unknown>(null)
+  const showSuccess = !!state?.success && successHidden !== state
 
   useEffect(() => {
     if (state?.success) {
-      setShowSuccess(true)
-      const t = setTimeout(() => setShowSuccess(false), 3000)
+      // setState só dentro do timeout (assíncrono) — evita render em cascata.
+      const t = setTimeout(() => setSuccessHidden(state), 3000)
       return () => clearTimeout(t)
     }
   }, [state])
@@ -316,14 +317,15 @@ function OfferSection({
   initial: Pick<AplicacaoProps, 'offerRecebidaEm' | 'offerDeadline' | 'offerValorDeposito'>
 }) {
   const [state, action, isPending] = useActionState<OfferFormState, FormData>(updateOffer, null)
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [successHidden, setSuccessHidden] = useState<unknown>(null)
+  const showSuccess = !!state?.success && successHidden !== state
   const [deadlineValue, setDeadlineValue] = useState(toDateInput(initial.offerDeadline))
   const soon = isDeadlineSoon(deadlineValue ? new Date(deadlineValue).toISOString() : null)
 
   useEffect(() => {
     if (state?.success) {
-      setShowSuccess(true)
-      const t = setTimeout(() => setShowSuccess(false), 3000)
+      // setState só dentro do timeout (assíncrono) — evita render em cascata.
+      const t = setTimeout(() => setSuccessHidden(state), 3000)
       return () => clearTimeout(t)
     }
   }, [state])

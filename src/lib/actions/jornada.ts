@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { canAccessLead } from '@/lib/auth'
 import { Role, JornadaStatus, JornadaEtapaStatus, PreEmbarqueStatus } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -133,6 +134,10 @@ export async function getJornadaHub(jornadaId: string): Promise<JornadaHubData |
 }
 
 export async function getJornadaSummaryByLead(leadId: string) {
+  // Antes não autenticava nem checava ownership (IDOR). Agora exige sessão e acesso ao lead.
+  const user = await getCurrentUser()
+  if (!(await canAccessLead(leadId, user))) return null
+
   return prisma.estudanteJornada.findUnique({
     where: { leadId },
     select: {

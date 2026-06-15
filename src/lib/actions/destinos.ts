@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { getAuthUser } from '@/lib/auth'
 import { Role, EscolaTipo, CampoTipo } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ async function requireDirecao(): Promise<string | null> {
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export async function listPaises(): Promise<PaisData[]> {
+  await getAuthUser() // exige sessão (antes era endpoint RPC sem nenhuma checagem)
   const paises = await prisma.pais.findMany({
     include: {
       estados: {
@@ -143,6 +145,8 @@ export async function listPaises(): Promise<PaisData[]> {
 }
 
 export async function listEscolas(): Promise<EscolaData[]> {
+  // Expõe contatos de parceiros (e-mail/telefone) — restrito a DIRECAO (usado só em /configuracoes).
+  if (await requireDirecao()) return []
   const escolas = await prisma.escola.findMany({
     include: {
       cidade: { select: { nome: true, estado: { select: { nome: true, pais: { select: { nome: true, bandeira: true } } } } } },

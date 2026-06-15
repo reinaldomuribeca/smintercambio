@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser, canAccessLead } from '@/lib/auth'
 import { FechamentoEtapaStatus, TarefaTipo, TarefaStatus, Role, JornadaStatus } from '@prisma/client'
 import { ETAPAS_DEF } from '@/lib/fechamento-config'
 
@@ -25,13 +25,6 @@ export type FechamentoData = {
 export type FechamentoActionState = { error?: string; success?: boolean } | null
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function getCurrentUserId() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
-  return user.id
-}
 
 async function getJornadaInfo(jornadaId: string) {
   return prisma.estudanteJornada.findUnique({
@@ -80,7 +73,7 @@ export async function concluirEtapa(
   formData: FormData,
 ): Promise<FechamentoActionState> {
   try {
-    const userId = await getCurrentUserId()
+    const user = await getAuthUser()
     const fechamentoId = formData.get('fechamentoId') as string
     const numero = Number(formData.get('numero'))
 
@@ -89,6 +82,13 @@ export async function concluirEtapa(
     const fechamento = await prisma.fechamentoMatricula.findUniqueOrThrow({
       where: { id: fechamentoId },
     })
+
+    // Checagem de acesso ao lead da jornada (fecha IDOR)
+    const jornadaInfo = await getJornadaInfo(fechamento.jornadaId)
+    if (!jornadaInfo) return { error: 'Jornada não encontrada.' }
+    if (!(await canAccessLead(jornadaInfo.lead.id, user))) {
+      return { error: 'Sem permissão.' }
+    }
 
     if (fechamento.etapaAtual !== numero) {
       return { error: 'Esta etapa não é a etapa atual.' }
@@ -119,13 +119,13 @@ export async function concluirEtapa(
           status: FechamentoEtapaStatus.CONCLUIDO,
           dados,
           concluidaEm: new Date(),
-          concluidaPor: userId,
+          concluidaPor: user.id,
         },
         update: {
           status: FechamentoEtapaStatus.CONCLUIDO,
           dados,
           concluidaEm: new Date(),
-          concluidaPor: userId,
+          concluidaPor: user.id,
         },
       }),
       prisma.fechamentoMatricula.update({
@@ -143,8 +143,7 @@ export async function concluirEtapa(
       ] : []),
     ])
 
-    const jornadaInfo = await getJornadaInfo(fechamento.jornadaId)
-    if (jornadaInfo) {
+    {
       const leadId = jornadaInfo.lead.id
 
       // Se o passo atual era do FINANCEIRO → fechar as tarefas de fechamento pendentes do lead
@@ -197,6 +196,7 @@ export async function devolverEtapa(
   formData: FormData,
 ): Promise<FechamentoActionState> {
   try {
+    const user = await getAuthUser()
     const fechamentoId = formData.get('fechamentoId') as string
     const numero = Number(formData.get('numero'))
     const motivo = (formData.get('motivo') as string | null)?.trim()
@@ -214,6 +214,13 @@ export async function devolverEtapa(
       where: { id: fechamentoId },
     })
 
+    // Checagem de acesso ao lead da jornada (fecha IDOR — operação destrutiva: deleteMany)
+    const jornadaInfo = await getJornadaInfo(fechamento.jornadaId)
+    if (!jornadaInfo) return { error: 'Jornada não encontrada.' }
+    if (!(await canAccessLead(jornadaInfo.lead.id, user))) {
+      return { error: 'Sem permissão.' }
+    }
+
     await prisma.$transaction([
       prisma.fechamentoEtapa.upsert({
         where: { fechamentoId_numero: { fechamentoId, numero } },
@@ -230,8 +237,7 @@ export async function devolverEtapa(
     ])
 
     // Tratar tarefas pós-devolução
-    const jornadaInfo = await getJornadaInfo(fechamento.jornadaId)
-    if (jornadaInfo && etapaDef.role === 'FINANCEIRO') {
+    if (etapaDef.role === 'FINANCEIRO') {
       const leadId = jornadaInfo.lead.id
 
       // Cancelar tarefas de fechamento pendentes do lead

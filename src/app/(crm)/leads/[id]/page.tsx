@@ -7,6 +7,8 @@ import type { AplicacaoProps } from '@/components/aplicacao/aba-aplicacao'
 import type { FinanceiroProps } from '@/components/financeiro/aba-financeiro'
 import type { ChecklistItem } from '@/lib/actions/aplicacao'
 import type { PagamentoItem } from '@/lib/actions/financeiro'
+import { decToNum } from '@/lib/utils/financeiro'
+import { decryptSecret } from '@/lib/crypto'
 import { getLeadTarefas, getUsuariosAtivos } from '@/lib/actions/tarefas'
 import { getLeadHistorico } from '@/lib/actions/historico'
 import { getJornadaSummaryByLead } from '@/lib/actions/jornada'
@@ -108,10 +110,15 @@ export default async function LeadDetalhePage({ params }: { params: Params }) {
         id: lead.aplicacao.id,
         portalNome: lead.aplicacao.portalNome,
         portalUrl: lead.aplicacao.portalUrl,
-        portalLogin: lead.aplicacao.portalLogin,
+        // Credencial: só decifra e serializa para quem pode vê-la (DIRECAO/OPERACOES);
+        // para os demais nem trafega no payload RSC.
+        portalLogin:
+          currentUser.role === Role.DIRECAO || currentUser.role === Role.OPERACOES
+            ? decryptSecret(lead.aplicacao.portalLogin)
+            : null,
         offerRecebidaEm: lead.aplicacao.offerRecebidaEm?.toISOString() ?? null,
         offerDeadline: lead.aplicacao.offerDeadline?.toISOString() ?? null,
-        offerValorDeposito: lead.aplicacao.offerValorDeposito,
+        offerValorDeposito: decToNum(lead.aplicacao.offerValorDeposito),
         checklistDocs: (lead.aplicacao.checklistDocs as unknown as ChecklistItem[]) ?? [],
       }
     : null
@@ -145,18 +152,18 @@ export default async function LeadDetalhePage({ params }: { params: Params }) {
     ? {
         id: lead.financeiro.id,
         moeda: lead.financeiro.moeda,
-        cambioUsado: lead.financeiro.cambioUsado,
-        tuitionValor: lead.financeiro.tuitionValor,
-        valorBoarding: lead.financeiro.valorBoarding,
-        valorSeguro: lead.financeiro.valorSeguro,
-        taxasExtras: lead.financeiro.taxasExtras,
-        applicationFee: lead.financeiro.applicationFee,
-        registrationFee: lead.financeiro.registrationFee,
-        acceptanceDeposit: lead.financeiro.acceptanceDeposit,
-        taxaAdministrativa: lead.financeiro.taxaAdministrativa,
-        consultoriaSM: lead.financeiro.consultoriaSM,
-        comissaoPrevista: lead.financeiro.comissaoPrevista,
-        comissaoRecebida: lead.financeiro.comissaoRecebida,
+        cambioUsado: decToNum(lead.financeiro.cambioUsado),
+        tuitionValor: decToNum(lead.financeiro.tuitionValor),
+        valorBoarding: decToNum(lead.financeiro.valorBoarding),
+        valorSeguro: decToNum(lead.financeiro.valorSeguro),
+        taxasExtras: decToNum(lead.financeiro.taxasExtras),
+        applicationFee: decToNum(lead.financeiro.applicationFee),
+        registrationFee: decToNum(lead.financeiro.registrationFee),
+        acceptanceDeposit: decToNum(lead.financeiro.acceptanceDeposit),
+        taxaAdministrativa: decToNum(lead.financeiro.taxaAdministrativa),
+        consultoriaSM: decToNum(lead.financeiro.consultoriaSM),
+        comissaoPrevista: decToNum(lead.financeiro.comissaoPrevista),
+        comissaoRecebida: decToNum(lead.financeiro.comissaoRecebida),
         comissaoDataPrevista: lead.financeiro.comissaoDataPrevista?.toISOString() ?? null,
         comissaoStatus: lead.financeiro.comissaoStatus,
         pagamentosFamilia: (lead.financeiro.pagamentosFamilia as unknown as PagamentoItem[]) ?? [],

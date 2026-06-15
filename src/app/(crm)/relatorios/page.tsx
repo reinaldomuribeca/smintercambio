@@ -6,6 +6,7 @@ import { Role } from '@prisma/client'
 import { differenceInDays, format, startOfMonth } from 'date-fns'
 import { BarChart2 } from 'lucide-react'
 import type { ChecklistItem } from '@/lib/actions/aplicacao'
+import { toBRL, sumBRL, decToNum } from '@/lib/utils/financeiro'
 import { getProductivityMetrics } from '@/lib/actions/tarefas'
 import { RelatoriosAbas, type RelatoriosData } from '@/components/relatorios/relatorios-abas'
 import { RelatoriosFiltros } from '@/components/relatorios/relatorios-filtros'
@@ -243,39 +244,47 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: S
     ? (() => {
         const ativos = leadsInPeriod.filter((l) => !PERDIDO.includes(l.funilStatus))
 
-        const comissaoPrevistaSoma = ativos.reduce(
-          (acc, l) => acc + (l.financeiro?.comissaoPrevista ?? 0),
-          0,
+        // BRL = valor na moeda original * câmbio. sumBRL/toBRL ignoram linhas sem
+        // câmbio para nunca somar moedas diferentes como se fossem R$ (Decimal→number).
+        const comissaoPrevistaSoma = sumBRL(
+          ativos.map((l) => ({
+            valor: decToNum(l.financeiro?.comissaoPrevista),
+            cambio: decToNum(l.financeiro?.cambioUsado),
+          })),
         )
-        const comissaoRecebidaSoma = leadsInPeriod.reduce(
-          (acc, l) => acc + (l.financeiro?.comissaoRecebida ?? 0),
-          0,
+        const comissaoRecebidaSoma = sumBRL(
+          leadsInPeriod.map((l) => ({
+            valor: decToNum(l.financeiro?.comissaoRecebida),
+            cambio: decToNum(l.financeiro?.cambioUsado),
+          })),
         )
 
         const leadsFinanceiro = leadsInPeriod.filter((l) =>
           FINANCEIRO_STAGES.includes(l.funilStatus),
         )
 
-        const tuitionBRLSoma = leadsFinanceiro.reduce((acc, l) => {
-          const f = l.financeiro
-          if (!f?.tuitionValor || !f?.cambioUsado) return acc
-          return acc + f.tuitionValor * f.cambioUsado
-        }, 0)
+        const tuitionBRLSoma = sumBRL(
+          leadsFinanceiro.map((l) => ({
+            valor: decToNum(l.financeiro?.tuitionValor),
+            cambio: decToNum(l.financeiro?.cambioUsado),
+          })),
+        )
 
-        const leads = leadsFinanceiro.map((l) => ({
-          leadId:            l.id,
-          leadNome:          l.nome,
-          funilStatusLabel:  FUNIL_LABEL[l.funilStatus] ?? l.funilStatus,
-          moeda:             l.financeiro?.moeda ?? null,
-          cambioUsado:       l.financeiro?.cambioUsado ?? null,
-          tuitionBRL:
-            l.financeiro?.tuitionValor && l.financeiro?.cambioUsado
-              ? l.financeiro.tuitionValor * l.financeiro.cambioUsado
-              : null,
-          comissaoPrevista: l.financeiro?.comissaoPrevista ?? null,
-          comissaoRecebida: l.financeiro?.comissaoRecebida ?? null,
-          comissaoStatus:   l.financeiro?.comissaoStatus ?? 'PENDENTE',
-        }))
+        const leads = leadsFinanceiro.map((l) => {
+          const cambio = decToNum(l.financeiro?.cambioUsado)
+          return {
+            leadId:            l.id,
+            leadNome:          l.nome,
+            funilStatusLabel:  FUNIL_LABEL[l.funilStatus] ?? l.funilStatus,
+            moeda:             l.financeiro?.moeda ?? null,
+            cambioUsado:       cambio,
+            // Tudo em BRL (a tabela formata como R$ via fmtBRL).
+            tuitionBRL:        toBRL(decToNum(l.financeiro?.tuitionValor), cambio),
+            comissaoPrevista:  toBRL(decToNum(l.financeiro?.comissaoPrevista), cambio),
+            comissaoRecebida:  toBRL(decToNum(l.financeiro?.comissaoRecebida), cambio),
+            comissaoStatus:    l.financeiro?.comissaoStatus ?? 'PENDENTE',
+          }
+        })
 
         return { comissaoPrevistaSoma, comissaoRecebidaSoma, tuitionBRLSoma, leads }
       })()

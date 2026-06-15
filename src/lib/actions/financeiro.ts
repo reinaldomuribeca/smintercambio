@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit'
 import { ComissaoStatus, Role } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ export async function upsertFinanceiro(
   _prev: FinanceiroState,
   formData: FormData,
 ): Promise<FinanceiroState> {
-  const { role } = await getAuth()
+  const { id: userId, role } = await getAuth()
   if (!canEditFinanceiro(role)) return { error: 'Sem permissão para editar dados financeiros.' }
 
   const leadId = formData.get('leadId') as string
@@ -81,6 +82,22 @@ export async function upsertFinanceiro(
     where: { leadId },
     create: { leadId, ...data },
     update: data,
+  })
+
+  // Trilha de auditoria: dinheiro alterado — registra autor + principais valores.
+  await logAudit({
+    entidade: 'Financeiro',
+    entidadeId: leadId,
+    acao: 'upsert',
+    autorId: userId,
+    diff: {
+      moeda: data.moeda,
+      cambioUsado: data.cambioUsado,
+      tuitionValor: data.tuitionValor,
+      comissaoPrevista: data.comissaoPrevista,
+      comissaoRecebida: data.comissaoRecebida,
+      comissaoStatus: data.comissaoStatus,
+    },
   })
 
   revalidatePath(`/leads/${leadId}`)

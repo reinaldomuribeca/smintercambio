@@ -258,6 +258,7 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
   )
   const [showDialog, setShowDialog] = useState(false)
   const [removingIndex, setRemovingIndex] = useState<number | null>(null)
+  const [pagamentoError, setPagamentoError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   // ── Form state ──
@@ -265,12 +266,13 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
     upsertFinanceiro,
     null,
   )
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [successHidden, setSuccessHidden] = useState<unknown>(null)
+  const showSuccess = !!formState?.success && successHidden !== formState
 
   useEffect(() => {
     if (formState?.success) {
-      setShowSuccess(true)
-      const t = setTimeout(() => setShowSuccess(false), 3000)
+      // setState só dentro do timeout (assíncrono) — evita render em cascata.
+      const t = setTimeout(() => setSuccessHidden(formState), 3000)
       return () => clearTimeout(t)
     }
   }, [formState])
@@ -283,6 +285,7 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
 
   // ── Pagamento handlers ──
   const handleAdd = (item: PagamentoItem) => {
+    setPagamentoError(null)
     const optimistic = [...pagamentos, item]
     setPagamentos(optimistic)
     setShowDialog(false)
@@ -291,12 +294,13 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
       const result = await addPagamento(leadId, item)
       if (result.error) {
         setPagamentos(pagamentos) // revert
-        alert(result.error)
+        setPagamentoError(result.error)
       }
     })
   }
 
   const handleRemove = (index: number) => {
+    setPagamentoError(null)
     const previous = pagamentos
     setRemovingIndex(index)
     const optimistic = pagamentos.filter((_, i) => i !== index)
@@ -307,7 +311,7 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
       setRemovingIndex(null)
       if (result.error) {
         setPagamentos(previous) // revert
-        alert(result.error)
+        setPagamentoError(result.error)
       }
     })
   }
@@ -552,6 +556,14 @@ function FinanceiroInner({ leadId, financeiro }: { leadId: string; financeiro: F
 
       {/* ── Seção: Pagamentos da Família ── */}
       <Section title="Pagamentos da Família">
+        {pagamentoError && (
+          <div
+            role="alert"
+            className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {pagamentoError}
+          </div>
+        )}
         {/* Table */}
         {pagamentos.length === 0 ? (
           <p className="mb-4 text-sm text-stone-400">Nenhum pagamento registrado.</p>

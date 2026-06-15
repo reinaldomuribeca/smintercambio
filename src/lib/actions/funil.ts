@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { addBusinessDays } from '@/lib/utils/datas'
+import { logAudit } from '@/lib/audit'
 import { Prisma, Role } from '@prisma/client'
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
@@ -128,19 +130,40 @@ export async function updateFunilStatus(
     },
   })
 
-  if (newStatus === 'PROPOSTA_ENVIADA') {
-    const prazo = new Date()
-    prazo.setDate(prazo.getDate() + 3)
-    await prisma.tarefa.create({
-      data: {
-        leadId,
-        responsavelId: lead.consultorId,
-        titulo: 'Follow-up estratégico — proposta enviada',
-        tipo: 'FOLLOWUP',
-        status: 'PENDENTE',
-        prazo,
-      },
+  // Trilha de auditoria: quem moveu o lead e para onde (+ motivo de perda).
+  await logAudit({
+    entidade: 'Lead',
+    entidadeId: leadId,
+    acao: 'mover_funil',
+    autorId: userId,
+    diff: {
+      de: lead.funilStatus,
+      para: newStatus,
+      ...(motivoPerda ? { motivoPerda } : {}),
+    },
+  })
+
+  // Regra de negócio #2: ao ENTRAR em PROPOSTA_ENVIADA, gera follow-up
+  // estratégico com prazo de 3 dias ÚTEIS. Dispara apenas na transição de
+  // status (não a cada salvar) e evita duplicar caso já exista uma pendente.
+  if (newStatus === 'PROPOSTA_ENVIADA' && lead.funilStatus !== 'PROPOSTA_ENVIADA') {
+    const tituloFollowup = 'Follow-up estratégico — proposta enviada'
+    const jaExiste = await prisma.tarefa.findFirst({
+      where: { leadId, titulo: tituloFollowup, status: 'PENDENTE' },
+      select: { id: true },
     })
+    if (!jaExiste) {
+      await prisma.tarefa.create({
+        data: {
+          leadId,
+          responsavelId: lead.consultorId,
+          titulo: tituloFollowup,
+          tipo: 'FOLLOWUP',
+          status: 'PENDENTE',
+          prazo: addBusinessDays(new Date(), 3),
+        },
+      })
+    }
   }
 
   revalidatePath('/funil')

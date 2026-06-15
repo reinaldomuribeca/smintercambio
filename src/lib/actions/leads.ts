@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit'
 import { OrigemLead, Prisma, Role } from '@prisma/client'
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ export async function reatribuirConsultor(
   _prev: ReatribuirState,
   formData: FormData,
 ): Promise<ReatribuirState> {
-  const { role } = await getAuth()
+  const { id: userId, role } = await getAuth()
   if (role !== Role.DIRECAO) return { error: 'Sem permissão.' }
 
   const leadId         = (formData.get('leadId') as string | null)?.trim()
@@ -214,9 +215,36 @@ export async function reatribuirConsultor(
 
   if (!leadId || !novoConsultorId) return { error: 'Dados inválidos.' }
 
-  await prisma.lead.update({
+  // Valida o consultor-alvo: precisa existir, estar ativo e poder receber leads.
+  const alvo = await prisma.user.findUnique({
+    where: { id: novoConsultorId },
+    select: { ativo: true, role: true },
+  })
+  if (!alvo || !alvo.ativo || (alvo.role !== Role.CONSULTOR && alvo.role !== Role.DIRECAO)) {
+    return { error: 'Consultor inválido.' }
+  }
+
+  // Consultor anterior (para a trilha de auditoria).
+  const atual = await prisma.lead.findUnique({
     where: { id: leadId },
-    data: { consultorId: novoConsultorId },
+    select: { consultorId: true },
+  })
+
+  try {
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { consultorId: novoConsultorId },
+    })
+  } catch {
+    return { error: 'Não foi possível reatribuir o lead.' }
+  }
+
+  await logAudit({
+    entidade: 'Lead',
+    entidadeId: leadId,
+    acao: 'reatribuir',
+    autorId: userId,
+    diff: { de: atual?.consultorId ?? null, para: novoConsultorId },
   })
 
   revalidatePath(`/leads/${leadId}`)

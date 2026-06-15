@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { ObjetivoPrograma, Role } from '@prisma/client'
+import { DEFAULT_CHECKLIST_TEMPLATES } from '@/lib/checklist-templates'
+import { encryptSecret } from '@/lib/crypto'
+import { Role } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,67 +32,6 @@ async function getAuth() {
     select: { id: true, role: true },
   })
   return dbUser
-}
-
-// ─── Checklist templates ──────────────────────────────────────────────────────
-
-const TEMPLATES: Record<ObjetivoPrograma, ChecklistItem[]> = {
-  HIGH_SCHOOL: [
-    { nome: 'Passaporte',                          obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Transcrição escolar (2 últimos anos)', obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Atestado de matrícula',               obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Histórico escolar',                   obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação — Professor',   obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação — Diretor',     obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Redação motivacional (essay)',         obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Foto 3×4 (padrão passaporte)',        obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Certidão de nascimento',              obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Atestado médico',                     obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar',       obrigatorio: true,  status: 'PENDENTE' },
-  ],
-  BOARDING_SCHOOL: [
-    { nome: 'Passaporte',                          obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Transcrição escolar (2 últimos anos)', obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Atestado de matrícula',               obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Histórico escolar',                   obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação — Professor',   obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação — Diretor',     obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Redação motivacional (essay)',         obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Foto 3×4 (padrão passaporte)',        obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Certidão de nascimento',              obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Atestado médico / Vacinas',           obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar',       obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Formulário médico da escola',         obrigatorio: false, status: 'PENDENTE' },
-  ],
-  SUMMER: [
-    { nome: 'Passaporte',                    obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Formulário de inscrição',       obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Foto 3×4 (padrão passaporte)', obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar', obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Atestado médico',               obrigatorio: false, status: 'PENDENTE' },
-  ],
-  IDIOMA: [
-    { nome: 'Passaporte',                    obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Formulário de inscrição',       obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar', obrigatorio: false, status: 'PENDENTE' },
-  ],
-  COLLEGE: [
-    { nome: 'Passaporte',                          obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Histórico escolar (Ensino Médio)',    obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Diploma Ensino Médio',                obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Transcrição com notas',               obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação (1)',            obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Carta de recomendação (2)',            obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Redações motivacionais (essays)',      obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'SAT / ACT (se exigido)',               obrigatorio: false, status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar',       obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Atestado médico / Vacinas',           obrigatorio: false, status: 'PENDENTE' },
-  ],
-  EXPERIENCIA_CURTA: [
-    { nome: 'Passaporte',                    obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Formulário de inscrição',       obrigatorio: true,  status: 'PENDENTE' },
-    { nome: 'Comprovante de renda familiar', obrigatorio: false, status: 'PENDENTE' },
-  ],
 }
 
 // ─── createAplicacao ──────────────────────────────────────────────────────────
@@ -127,7 +68,10 @@ export async function createAplicacao(leadId: string): Promise<{ error?: string;
       const docs = dbTemplate.documentos as unknown as { nome: string; obrigatorio: boolean }[]
       checklistDocs = docs.map((d) => ({ ...d, status: 'PENDENTE' as const }))
     } else {
-      checklistDocs = TEMPLATES[objetivo] ?? []
+      checklistDocs = (DEFAULT_CHECKLIST_TEMPLATES[objetivo] ?? []).map((d) => ({
+        ...d,
+        status: 'PENDENTE' as const,
+      }))
     }
   }
 
@@ -209,10 +153,14 @@ export async function updatePortal(
   const leadId      = formData.get('leadId') as string
   const portalNome  = (formData.get('portalNome')  as string).trim() || null
   const portalUrl   = (formData.get('portalUrl')   as string).trim() || null
-  const portalLogin =
+  // portalLogin é credencial sensível → cifrada em repouso (AES-256-GCM).
+  // undefined = não mexe no campo (roles sem permissão de editar o login).
+  const portalLoginRaw =
     role === Role.DIRECAO || role === Role.OPERACOES
       ? ((formData.get('portalLogin') as string).trim() || null)
       : undefined
+  const portalLogin =
+    portalLoginRaw === undefined ? undefined : encryptSecret(portalLoginRaw)
 
   const aplicacao = await prisma.aplicacao.findUnique({
     where: { leadId },

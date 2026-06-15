@@ -46,7 +46,7 @@ Não há framework de testes no projeto — nenhum comando `test` existe.
 - **Prisma ORM 7** — `prisma/schema.prisma` é o source of truth; configuração de migrations em `prisma.config.ts`
 - **Tailwind CSS v4** — sem `tailwind.config.*`; tokens de design definidos via `@theme {}` em `src/app/globals.css`
 - **Recharts** — gráficos no dashboard e relatórios
-- **Resend** — e-mails de alerta de tarefas e vencimentos
+- **Resend** — envio de e-mails (hoje usado apenas no fluxo de fechamento de matrícula via `sendEmailFechamento`; alerta automático de tarefas/vencimentos ainda **não** implementado — não há cron/route handler)
 - **@dnd-kit/core** — drag-and-drop do kanban do funil
 
 ---
@@ -73,7 +73,7 @@ Server Actions ficam em `src/lib/actions/[modulo].ts` (ex: `leads.ts`, `financei
 
 Dois grupos de rotas no App Router:
 - `src/app/(auth)/` — rotas públicas (login)
-- `src/app/(crm)/` — rotas protegidas (dashboard, leads, funil, tarefas, relatorios, configuracoes)
+- `src/app/(crm)/` — rotas protegidas (dashboard, leads, funil, jornada, tarefas, relatorios, configuracoes). O módulo **jornada** cobre o pós-fechamento (fechamento de matrícula, preparação de viagem, experiência) — ver `src/lib/actions/{jornada,fechamento}.ts`.
 
 ### Middleware (proxy)
 
@@ -89,14 +89,16 @@ O middleware de autenticação fica em **`src/proxy.ts`** — não em `middlewar
 
 ### Autenticação e autorização
 
-Dupla validação obrigatória em toda operação sensível:
-1. **Supabase RLS policy** — bloqueia no banco
-2. **Verificação no Server Action** — antes de qualquer operação
+**Atenção (realidade do projeto):** o Prisma conecta com role privilegiado via `DATABASE_URL`, que faz **bypass de RLS**. Logo, a verificação dentro do Server Action é a **única** barreira de autorização efetiva do app — as policies em `prisma/sql/add_checklist_templates_and_rls.sql` só protegeriam conexões diretas anon/user, que o app não faz. **Trate toda Server Action como única linha de defesa.**
+
+Helpers compartilhados em `src/lib/auth.ts`:
 
 ```ts
-const session = await getServerSession()
-if (!session || session.user.role !== 'DIRECAO') throw new Error('Unauthorized')
+const user = await getAuthUser()                          // exige sessão (redirect /login)
+if (!(await canAccessLead(leadId, user))) return []       // ownership por role
 ```
+
+Regras: toda action que recebe um `leadId` deve combinar `getAuthUser()` + `canAccessLead()`; erros retornam `{ error: string }` (nunca `throw` ao cliente).
 
 ### Prisma client (`src/lib/prisma.ts`)
 
@@ -115,12 +117,12 @@ Schema completo em `prisma/schema.prisma`. Entidades principais:
 
 | Entidade           | Relação        | Observação |
 |--------------------|----------------|------------|
-| User               | —              | Roles: DIRECAO, CONSULTOR, ADMINISTRATIVO, OPERACOES; UUID sincronizado com Supabase Auth |
+| User               | —              | Roles: DIRECAO, CONSULTOR, ADMINISTRATIVO, OPERACOES, FINANCEIRO; UUID sincronizado com Supabase Auth |
 | Lead               | N:1 User       | Entidade central; carrega o status do funil |
 | DiagnosticoSM      | 1:1 Lead       | Perfil, destino, budget, timing, riscos |
 | Aplicacao          | 1:1 Lead       | Checklist de docs (JSON), offer, portal externo |
 | Financeiro         | 1:1 Lead       | Tuition, comissões, pagamentos família (JSON), câmbio |
-| Tarefa             | N:1 Lead+User  | Tipos: FOLLOWUP, DOCUMENTO, REUNIAO, ALERTA, OUTRO |
+| Tarefa             | N:1 Lead+User  | Tipos: FOLLOWUP, DOCUMENTO, REUNIAO, ALERTA, OUTRO, FECHAMENTO |
 | HistoricoInteracao | N:1 Lead+User  | Linha do tempo: reunião, mensagem, email, arquivo, nota |
 | ChecklistTemplate  | —              | Templates de documentos por ObjetivoPrograma |
 
@@ -161,6 +163,7 @@ Mover para **Perdido** exige campo `motivo` preenchido antes de salvar.
 | CONSULTOR      | Leads onde é responsável        | Funil, diagnóstico, tarefas próprias |
 | ADMINISTRATIVO | Financeiro de todos             | Financeiro |
 | OPERACOES      | Aplicações de todos             | Aplicações, checklists |
+| FINANCEIRO     | Leads onde tem tarefa atribuída | Financeiro, etapas de fechamento (jornada) |
 
 ---
 
