@@ -182,6 +182,7 @@ export async function concluirEtapa(
     revalidatePath(`/jornada/${fechamento.jornadaId}/fechamento`)
     revalidatePath(`/jornada/${fechamento.jornadaId}`)
     revalidatePath('/tarefas')
+    revalidatePath('/financeiro')
     return { success: true }
   } catch (err) {
     console.error(err)
@@ -266,9 +267,80 @@ export async function devolverEtapa(
 
     revalidatePath(`/jornada/${fechamento.jornadaId}/fechamento`)
     revalidatePath('/tarefas')
+    revalidatePath('/financeiro')
     return { success: true }
   } catch (err) {
     console.error(err)
     return { error: 'Erro ao devolver etapa. Tente novamente.' }
   }
+}
+
+// ─── getFinanceiroInbox ───────────────────────────────────────────────────────
+// Caixa de tarefas do financeiro: fechamentos cuja etapa atual é de competência
+// do FINANCEIRO (fila compartilhada do time). Reusa concluirEtapa/devolverEtapa.
+
+const FINANCEIRO_STEP_NUMEROS = ETAPAS_DEF.filter((e) => e.role === 'FINANCEIRO').map((e) => e.numero)
+
+export type FinanceiroInboxItem = {
+  fechamentoId: string
+  jornadaId: string
+  leadId: string
+  leadNome: string
+  escolaNome: string
+  consultorNome: string
+  etapaNumero: number
+  etapaTitulo: string
+  etapaDescricao: string
+  devolveParaNumero: number | null
+  devolveParaTitulo: string | null
+  dadosSalvos: Record<string, string>
+  aguardandoDesde: string // ISO — desde quando está nesta etapa
+}
+
+export async function getFinanceiroInbox(): Promise<FinanceiroInboxItem[]> {
+  const user = await getAuthUser()
+  if (user.role !== Role.FINANCEIRO && user.role !== Role.DIRECAO) return []
+
+  const fechamentos = await prisma.fechamentoMatricula.findMany({
+    where: { concluido: false, etapaAtual: { in: FINANCEIRO_STEP_NUMEROS } },
+    select: {
+      id: true,
+      jornadaId: true,
+      etapaAtual: true,
+      updatedAt: true,
+      etapas: { select: { numero: true, dados: true } },
+      jornada: {
+        select: {
+          leadId: true,
+          lead: { select: { nome: true, consultor: { select: { nome: true } } } },
+          escola: { select: { nome: true } },
+        },
+      },
+    },
+    orderBy: { updatedAt: 'asc' }, // quem espera há mais tempo primeiro
+  })
+
+  return fechamentos.flatMap((f) => {
+    const def = ETAPAS_DEF.find((e) => e.numero === f.etapaAtual)
+    if (!def) return []
+    const devolveParaDef = def.devolveParaNumero
+      ? ETAPAS_DEF.find((e) => e.numero === def.devolveParaNumero) ?? null
+      : null
+    const etapaRec = f.etapas.find((e) => e.numero === f.etapaAtual)
+    return [{
+      fechamentoId: f.id,
+      jornadaId: f.jornadaId,
+      leadId: f.jornada.leadId,
+      leadNome: f.jornada.lead.nome,
+      escolaNome: f.jornada.escola.nome,
+      consultorNome: f.jornada.lead.consultor.nome,
+      etapaNumero: def.numero,
+      etapaTitulo: def.titulo,
+      etapaDescricao: def.descricao,
+      devolveParaNumero: def.devolveParaNumero ?? null,
+      devolveParaTitulo: devolveParaDef?.titulo ?? null,
+      dadosSalvos: (etapaRec?.dados as Record<string, string>) ?? {},
+      aguardandoDesde: f.updatedAt.toISOString(),
+    }]
+  })
 }

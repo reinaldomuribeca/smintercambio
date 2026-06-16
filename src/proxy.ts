@@ -29,6 +29,7 @@ export const config = {
     '/leads/:path*',
     '/funil/:path*',
     '/jornada/:path*',
+    '/financeiro/:path*',
     '/tarefas/:path*',
     '/relatorios/:path*',
     '/configuracoes/:path*',

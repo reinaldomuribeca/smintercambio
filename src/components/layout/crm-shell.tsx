@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   MapPin,
+  Wallet,
 } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 
@@ -22,6 +23,8 @@ type NavItem = {
   href: string
   label: string
   icon: React.ElementType
+  /** Se definido, o item só aparece para esses perfis. */
+  roles?: string[]
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -29,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/leads',        label: 'Leads',         icon: Users },
   { href: '/funil',        label: 'Funil',         icon: Kanban },
   { href: '/jornada',      label: 'Jornada',       icon: MapPin },
+  { href: '/financeiro',   label: 'Financeiro',    icon: Wallet, roles: ['FINANCEIRO', 'DIRECAO'] },
   { href: '/tarefas',      label: 'Tarefas',       icon: ClipboardList },
   { href: '/relatorios',   label: 'Relatórios',    icon: BarChart3 },
 ]
@@ -148,6 +152,7 @@ function Sidebar({
   onClose?: () => void
 }) {
   const showConfig = user.role === 'DIRECAO'
+  const items = NAV_ITEMS.filter((i) => !i.roles || i.roles.includes(user.role))
 
   return (
     <aside className="flex h-full w-64 flex-col bg-navy-900 px-3 py-5">
@@ -174,7 +179,7 @@ function Sidebar({
       {/* Navegação */}
       <div className="flex-1 overflow-y-auto">
         <SidebarNav
-          items={NAV_ITEMS}
+          items={items}
           showConfig={showConfig}
           onNavClick={onClose}
         />
